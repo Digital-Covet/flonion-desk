@@ -1,0 +1,186 @@
+@import "tailwindcss";
+@import "@fontsource-variable/jost/wght.css";
+@import "@fontsource-variable/rubik/wght.css";
+
+/*
+ * App-wide font tokens. Jost is the body face, Rubik is reserved for headings.
+ * The variable families come from @fontsource so we ship one file per weight
+ * axis instead of pinning a single cut.
+ */
+@theme {
+  --font-sans: "Jost Variable", "Jost", sans-serif;
+  --font-heading: "Rubik Variable", "Rubik", sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/*
+ * Base UI popup surfaces. These are the only visuals on the console with no
+ * counterpart in the original design; the colours are taken from the token
+ * set in app/components/constants.ts so they read as native to it.
+ */
+
+/* Reset for the bare icons that Base UI turns into buttons. */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.icon-button:focus-visible,
+[data-popup-open].icon-button:focus-visible {
+  outline: 2px solid #4fd1c5;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.tooltip-popup {
+  background-color: #2d3748;
+  color: white;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  box-shadow: 0px 3.5px 5.5px 0px rgba(0, 0, 0, 0.15);
+  max-width: 240px;
+}
+
+.menu-popup {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0px 3.5px 5.5px 0px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  min-width: 180px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #2d3748;
+  cursor: pointer;
+  text-align: left;
+}
+
+.menu-item[data-disabled] {
+  color: #a0aec0;
+  cursor: default;
+}
+
+.menu-item:not([data-disabled]):hover,
+.menu-item:not([data-disabled])[data-highlighted] {
+  background-color: #edf2f7;
+}
+
+/*
+ * Sidebar drawer (below `lg`).
+ *
+ * The popup is `--bleed` wider than the 246px rail and pulled that far past
+ * the left edge, so over-swiping drags a filled surface rather than opening a
+ * gap. Closed, it sits at `-100% + bleed`, which puts its trailing edge just
+ * off screen. The transitions read the swipe variables Base UI publishes on
+ * the popup and backdrop, so a released drag finishes at the speed it was
+ * thrown instead of a fixed duration.
+ */
+.sidebar-drawer-backdrop {
+  --backdrop-opacity: 0.35;
+  position: fixed;
+  inset: 0;
+  min-height: 100dvh;
+  background-color: #151928;
+  opacity: calc(var(--backdrop-opacity) * (1 - var(--drawer-swipe-progress)));
+  transition: opacity 450ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* iOS 26+: keep the backdrop over the whole visible viewport. */
+@supports (-webkit-touch-callout: none) {
+  .sidebar-drawer-backdrop {
+    position: absolute;
+  }
+}
+
+.sidebar-drawer-backdrop[data-swiping] {
+  transition-duration: 0ms;
+}
+
+.sidebar-drawer-backdrop[data-starting-style],
+.sidebar-drawer-backdrop[data-ending-style] {
+  opacity: 0;
+}
+
+.sidebar-drawer-backdrop[data-ending-style] {
+  transition-duration: calc(var(--drawer-swipe-strength) * 400ms);
+}
+
+.sidebar-drawer-viewport {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.sidebar-drawer-popup {
+  --bleed: 3rem;
+  width: calc(246px + var(--bleed));
+  max-width: calc(100vw - 3rem + var(--bleed));
+  margin-left: calc(-1 * var(--bleed));
+  padding-left: var(--bleed);
+  background-color: #f8f9fa;
+  outline: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: auto;
+  box-shadow:
+    0px 2px 4px 0px rgba(0, 0, 0, 0.04),
+    0px 10px 24px -4px rgba(0, 0, 0, 0.08);
+  transform: translateX(var(--drawer-swipe-movement-x));
+  transition: transform 450ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sidebar-drawer-popup[data-swiping] {
+  user-select: none;
+}
+
+.sidebar-drawer-popup[data-starting-style],
+.sidebar-drawer-popup[data-ending-style] {
+  transform: translateX(calc(-100% + var(--bleed) - 2px));
+}
+
+.sidebar-drawer-popup[data-ending-style] {
+  transition-duration: calc(var(--drawer-swipe-strength) * 400ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-drawer-backdrop,
+  .sidebar-drawer-popup {
+    transition-duration: 1ms;
+  }
+}
+
+/*
+ * The menu button that opens the drawer. Its `display` has to be set here
+ * rather than with a `lg:hidden` utility: `.icon-button` above is unlayered
+ * and so outranks anything Tailwind puts in the utilities layer.
+ */
+@media (min-width: 64rem) {
+  .sidebar-drawer-trigger {
+    display: none;
+  }
+}
