@@ -7,7 +7,6 @@ import {
   TEXT_MUTED,
 } from "./constants";
 import { ActivityFeed } from "./dashboard/ActivityFeed";
-import { Header } from "./dashboard/Header";
 import { PlatformHealthCard } from "./dashboard/PlatformHealthCard";
 import { RecentBusinessesTable } from "./dashboard/RecentBusinessesTable";
 import { ReviewsChart } from "./dashboard/ReviewsChart";
@@ -16,12 +15,15 @@ import { SignupsChart } from "./dashboard/SignupsChart";
 import { StatCard } from "./dashboard/StatCard";
 import { mainNavLinks } from "./data/navLinks";
 import { statTiles } from "./data/statTiles";
+import { PageHeader } from "./shell/PageHeader";
 import type { OverviewData } from "./types";
 
 type DashboardProps = {
   data: OverviewData | null;
   /** Set when the loader's queries failed; `data` is null in that case. */
   error: string | null;
+  /** Operator label from the shell, or null when no token was presented. */
+  operator: string | null;
 };
 
 /**
@@ -29,10 +31,10 @@ type DashboardProps = {
  * that the read failed. There is no third path where a figure is invented to
  * keep the layout intact.
  */
-export default function Dashboard({ data, error }: DashboardProps) {
+export default function Dashboard({ data, error, operator }: DashboardProps) {
   return (
     <div className="flex-1 overflow-auto p-6 min-w-0">
-      <Header />
+      <PageHeader title="Overview" operator={operator} showSearch />
 
       {data === null ? (
         <div className={`${CARD} p-6 mb-6 flex items-start gap-3`}>

@@ -19,6 +19,23 @@ body,
 }
 
 /*
+ * The console is a light-only design: white cards, #f8f9fa sidebar, dark text.
+ *
+ * Neither html nor body carried a background, so on a browser preferring dark
+ * the page ground was painted dark by the user agent and the muted greys sat
+ * on it unreadably. Declaring the scheme states the intent, and the explicit
+ * background stops the host theme showing through behind the cards.
+ */
+html {
+  color-scheme: light;
+}
+
+body {
+  background-color: #f4f6f8;
+  color: #2d3748;
+}
+
+/*
  * Base UI popup surfaces. These are the only visuals on the console with no
  * counterpart in the original design; the colours are taken from the token
  * set in app/components/constants.ts so they read as native to it.

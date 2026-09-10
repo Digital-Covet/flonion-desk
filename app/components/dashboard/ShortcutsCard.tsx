@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import {
   CARD_BACKDROP_SHADOW_CLASS,
   DARK_GRADIENT,
@@ -12,8 +13,9 @@ import type { NavLink } from "../types";
  *
  * The template filled this slot with a photograph behind a dark overlay; the
  * photo is gone but the overlay sits on the same dark gradient, so the panel
- * still anchors the right of the row. Sections are inert until they exist, so
- * these are labels rather than links.
+ * still anchors the right of the row. A section that exists is a link; one
+ * that does not is a dimmed label, so the panel never promises a screen that
+ * is not there.
  *
  * The row is a fixed 200px, so the section list cannot pick its own number of
  * columns: two columns needs four rows for seven sections, which overflows the
@@ -35,7 +37,7 @@ export function ShortcutsCard({ sections }: { sections: NavLink[] }) {
         <p
           className={`${FONT_REGULAR} text-white/70 text-[12px] leading-[1.5] mb-4`}
         >
-          Not yet wired up
+          Dimmed sections are not built yet
         </p>
 
         <div
@@ -44,18 +46,40 @@ export function ShortcutsCard({ sections }: { sections: NavLink[] }) {
             gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))",
           }}
         >
-          {sections.map(({ id, label, icon: Icon }) => (
-            <div key={id} className="flex items-center gap-2 min-w-0">
-              <div className="size-[22px] rounded-[8px] bg-white/15 flex items-center justify-center flex-none">
-                <Icon size={13} color="white" />
-              </div>
-              <span
-                className={`${FONT_REGULAR} text-white/90 text-[12px] leading-[1.5] truncate`}
+          {sections.map(({ id, label, to, icon: Icon }) => {
+            const body = (
+              <>
+                <div
+                  className={`size-[22px] rounded-[8px] flex items-center justify-center flex-none ${
+                    to ? "bg-white/15" : "bg-white/5"
+                  }`}
+                >
+                  <Icon size={13} color="white" />
+                </div>
+                <span
+                  className={`${FONT_REGULAR} text-[12px] leading-[1.5] truncate ${
+                    to ? "text-white/90" : "text-white/40"
+                  }`}
+                >
+                  {label}
+                </span>
+              </>
+            );
+
+            return to ? (
+              <Link
+                key={id}
+                to={to}
+                className="flex items-center gap-2 min-w-0 hover:opacity-80"
               >
-                {label}
-              </span>
-            </div>
-          ))}
+                {body}
+              </Link>
+            ) : (
+              <div key={id} className="flex items-center gap-2 min-w-0">
+                {body}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

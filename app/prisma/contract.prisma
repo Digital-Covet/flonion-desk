@@ -1,5 +1,18 @@
 // use prisma-next
 // Contract inferred from the live database schema. Edit as needed, then run `prisma contract emit`.
+//
+// Timestamp columns are bound to the *string* codec rather than the temporal one.
+// Both codecs describe the same Postgres native type, `timestamp(3)`, so this is a
+// client-side decode choice only: no DDL, no migration, and no drift against the
+// migration history the tenant app owns. Rows decode to plain strings, comparisons
+// accept plain strings, and Postgres still compares them as timestamps — which is
+// what lets window maths run in SQL instead of being pulled into JS.
+//
+// The temporal codec cannot be used here: it decodes to `Temporal.PlainDateTime`,
+// and nothing in this toolchain declares the `Temporal` global, so a cutoff value
+// could never be constructed in typed code to pass to `.gte()`.
+//
+// `Timestamptz` on PrismaMigrations is left alone. The desk never selects it.
 
 model Business {
   id                String             @id(map: "business_pkey")
@@ -9,8 +22,8 @@ model Business {
   name              String
   phone             String?
   address           String?
-  createdAt         Timestamp(3)       @default(now())
-  updatedAt         Timestamp(3)
+  createdAt         TimestampString(3)       @default(now())
+  updatedAt         TimestampString(3)
   keywords          String?
   reviewLink        String?
   reviewLinks       Jsonb?
@@ -53,8 +66,8 @@ model User {
   email                   String
   emailVerified           Boolean          @default(false)
   image                   String?
-  createdAt               Timestamp(3)     @default(now())
-  updatedAt               Timestamp(3)
+  createdAt               TimestampString(3)     @default(now())
+  updatedAt               TimestampString(3)
   twoFactorEnabled        Boolean?         @default(false)
   onboardingCompleted     Boolean          @default(false)
   businessId              String?
@@ -86,12 +99,12 @@ model Account {
   accessToken           String?
   refreshToken          String?
   idToken               String?
-  accessTokenExpiresAt  Timestamp(3)?
-  refreshTokenExpiresAt Timestamp(3)?
+  accessTokenExpiresAt  TimestampString(3)?
+  refreshTokenExpiresAt TimestampString(3)?
   scope                 String?
   password              String?
-  createdAt             Timestamp(3)  @default(now())
-  updatedAt             Timestamp(3)
+  createdAt             TimestampString(3)  @default(now())
+  updatedAt             TimestampString(3)
   user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "account_userId_fkey")
 
   @@index([userId], map: "account_userId_idx")
@@ -101,11 +114,11 @@ model Account {
 model AvailabilitySlot {
   id             String          @id(map: "availability_slot_pkey")
   businessId     String
-  date           Timestamp(3)
+  date           TimestampString(3)
   startTime      String
   endTime        String
   isBooked       Boolean         @default(false)
-  createdAt      Timestamp(3)    @default(now())
+  createdAt      TimestampString(3)    @default(now())
   title          String?
   meetingRequest MeetingRequest?
   business       Business        @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "availability_slot_businessId_fkey", index: false)
@@ -123,8 +136,8 @@ model BusinessContact {
   avatarUrl  String?
   email      String?
   position   Int          @default(0)
-  createdAt  Timestamp(3) @default(now())
-  updatedAt  Timestamp(3)
+  createdAt  TimestampString(3) @default(now())
+  updatedAt  TimestampString(3)
   business   Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "business_contact_businessId_fkey")
 
   @@index([businessId], map: "business_contact_businessId_idx")
@@ -135,7 +148,7 @@ model FavoritePartner {
   id         String       @id(map: "favorite_partner_pkey")
   userId     String
   businessId String
-  createdAt  Timestamp(3) @default(now())
+  createdAt  TimestampString(3) @default(now())
   business   Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "favorite_partner_businessId_fkey")
 
   @@index([businessId], map: "favorite_partner_businessId_idx")
@@ -152,7 +165,7 @@ model Feedback {
   category  String
   rating    Int
   message   String
-  createdAt Timestamp(3) @default(now())
+  createdAt TimestampString(3) @default(now())
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "feedback_userId_fkey")
 
   @@index([userId], map: "feedback_userId_idx")
@@ -164,10 +177,10 @@ model GoogleToken {
   userId       String
   accessToken  String
   refreshToken String
-  expiresAt    Timestamp(3)
+  expiresAt    TimestampString(3)
   tokenType    String       @default("Bearer")
-  createdAt    Timestamp(3) @default(now())
-  updatedAt    Timestamp(3)
+  createdAt    TimestampString(3) @default(now())
+  updatedAt    TimestampString(3)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "google_token_userId_fkey")
 
   @@unique([userId], map: "google_token_userId_key")
@@ -182,8 +195,8 @@ model Invitation {
   invitedById String
   token       String
   status      String       @default("pending")
-  expiresAt   Timestamp(3)
-  createdAt   Timestamp(3) @default(now())
+  expiresAt   TimestampString(3)
+  createdAt   TimestampString(3) @default(now())
   business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "invitation_businessId_fkey")
   invitedBy   User         @relation(fields: [invitedById], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "invitation_invitedById_fkey", index: false)
 
@@ -203,9 +216,9 @@ model JoinRequest {
   grantedRole                String?
   consentDeleteOwnedBusiness Boolean       @default(false)
   reviewedById               String?
-  reviewedAt                 Timestamp(3)?
-  createdAt                  Timestamp(3)  @default(now())
-  updatedAt                  Timestamp(3)
+  reviewedAt                 TimestampString(3)?
+  createdAt                  TimestampString(3)  @default(now())
+  updatedAt                  TimestampString(3)
   business                   Business      @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "join_request_businessId_fkey", index: false)
   reviewedBy                 User?         @relation(name: "join_request_reviewedById_fkey", fields: [reviewedById], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "join_request_reviewedById_fkey", index: false)
   user                       User          @relation(name: "join_request_userId_fkey", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "join_request_userId_fkey", index: false)
@@ -223,8 +236,8 @@ model MeetingRequest {
   requesterId String?
   status      String           @default("pending")
   message     String?
-  createdAt   Timestamp(3)     @default(now())
-  updatedAt   Timestamp(3)
+  createdAt   TimestampString(3)     @default(now())
+  updatedAt   TimestampString(3)
   meetSpaceId String?
   meetUri     String?
   guestEmail  String?
@@ -259,8 +272,8 @@ model Project {
   imageUrl   String
   altText    String
   position   Int          @default(0)
-  createdAt  Timestamp(3) @default(now())
-  updatedAt  Timestamp(3)
+  createdAt  TimestampString(3) @default(now())
+  updatedAt  TimestampString(3)
   business   Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "project_businessId_fkey")
 
   @@index([businessId], map: "project_businessId_idx")
@@ -273,7 +286,7 @@ model SharedReview {
   rating          Int
   reviewerName    String?
   userId          String
-  createdAt       Timestamp(3)     @default(now())
+  createdAt       TimestampString(3)     @default(now())
   keywords        String?
   reviewAnalytics ReviewAnalytics?
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "shared_review_userId_fkey")
@@ -287,8 +300,8 @@ model ReviewAnalytics {
   reviewId          String
   visitCount        Int          @default(0)
   reviewCount       Int          @default(0)
-  createdAt         Timestamp(3) @default(now())
-  updatedAt         Timestamp(3)
+  createdAt         TimestampString(3) @default(now())
+  updatedAt         TimestampString(3)
   qrScanCount       Int          @default(0)
   redirectCount     Int          @default(0)
   aiCopyCount       Int          @default(0)
@@ -307,8 +320,8 @@ model Service {
   title       String
   description String
   position    Int          @default(0)
-  createdAt   Timestamp(3) @default(now())
-  updatedAt   Timestamp(3)
+  createdAt   TimestampString(3) @default(now())
+  updatedAt   TimestampString(3)
   business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "service_businessId_fkey")
 
   @@index([businessId], map: "service_businessId_idx")
@@ -317,10 +330,10 @@ model Service {
 
 model Session {
   id        String       @id(map: "session_pkey")
-  expiresAt Timestamp(3)
+  expiresAt TimestampString(3)
   token     String
-  createdAt Timestamp(3) @default(now())
-  updatedAt Timestamp(3)
+  createdAt TimestampString(3) @default(now())
+  updatedAt TimestampString(3)
   ipAddress String?
   userAgent String?
   userId    String
@@ -337,12 +350,12 @@ model Task {
   description String?
   column      String        @default("todo")
   priority    String        @default("medium")
-  dueDate     Timestamp(3)?
+  dueDate     TimestampString(3)?
   position    Int           @default(0)
   assigneeId  String
   businessId  String
-  createdAt   Timestamp(3)  @default(now())
-  updatedAt   Timestamp(3)
+  createdAt   TimestampString(3)  @default(now())
+  updatedAt   TimestampString(3)
   assignee    User          @relation(fields: [assigneeId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "task_assigneeId_fkey")
   business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "task_businessId_fkey", index: false)
 
@@ -354,13 +367,13 @@ model Task {
 model TeamMeeting {
   id          String       @id(map: "team_meeting_pkey")
   title       String
-  date        Timestamp(3)
+  date        TimestampString(3)
   startTime   String
   endTime     String
   location    String
   businessId  String
-  createdAt   Timestamp(3) @default(now())
-  updatedAt   Timestamp(3)
+  createdAt   TimestampString(3) @default(now())
+  updatedAt   TimestampString(3)
   meetSpaceId String?
   meetUri     String?
   business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "team_meeting_businessId_fkey", index: false)
@@ -376,7 +389,7 @@ model TwoFactor {
   userId                  String
   verified                Boolean?      @default(true)
   failedVerificationCount Int?          @default(0)
-  lockedUntil             Timestamp(3)?
+  lockedUntil             TimestampString(3)?
   user                    User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "twoFactor_userId_fkey")
 
   @@index([secret], map: "twoFactor_secret_idx")
@@ -388,9 +401,9 @@ model Verification {
   id         String       @id(map: "verification_pkey")
   identifier String
   value      String
-  expiresAt  Timestamp(3)
-  createdAt  Timestamp(3) @default(now())
-  updatedAt  Timestamp(3)
+  expiresAt  TimestampString(3)
+  createdAt  TimestampString(3) @default(now())
+  updatedAt  TimestampString(3)
 
   @@index([identifier], map: "verification_identifier_idx")
   @@map("verification")

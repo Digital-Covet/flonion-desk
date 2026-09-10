@@ -1,7 +1,8 @@
+import { useOutletContext } from "react-router";
 import Dashboard from "../components/Dashboard";
-import Sidebar from "../components/Sidebar";
 import { loadOverview } from "../prisma/overview";
 import type { Route } from "./+types/home";
+import type { ConsoleContext } from "./console";
 
 export function meta(_: Route.MetaArgs) {
   return [
@@ -33,16 +34,16 @@ export async function loader() {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { data, error } = loaderData;
+  const { operator } = useOutletContext<ConsoleContext>();
 
   return (
-    <div className="flex h-screen overflow-hidden font-sans">
+    <>
       {/*
         Page-level landmark for assistive tech; visually hidden so the
         Dashboard's own card titles remain the only headings on screen.
       */}
       <h1 className="sr-only font-heading">Overview</h1>
-      <Sidebar />
-      <Dashboard data={data} error={error} />
-    </div>
+      <Dashboard data={data} error={error} operator={operator} />
+    </>
   );
 }

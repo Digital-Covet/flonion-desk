@@ -1,5 +1,12 @@
 import type { ChartPoint, OverviewData, StatFigure } from "../components/types";
 import { db } from "./db";
+import {
+  daysAgo,
+  formatDay,
+  formatStamp,
+  stampToMillis,
+  toStamp,
+} from "./time";
 
 /**
  * Every read behind the operator overview.
@@ -10,6 +17,12 @@ import { db } from "./db";
  * different timezones and formatting twice would break hydration.
  *
  * The screen is read-only. Nothing here writes.
+ *
+ * Window maths runs in SQL. `Timestamp(3)` columns are bound to the string
+ * codec, so a cutoff is just a string and the database does the counting —
+ * see `time.ts`. An earlier revision could not do this and compensated by
+ * fetching up to 20,000 timestamps per table and bucketing them in JS, which
+ * silently produced wrong figures for any table that outgrew the cap.
  */
 
 /** Weekly buckets shown by both charts: the last 8 weeks, ending today. */
@@ -21,69 +34,11 @@ const DELTA_DAYS = 30;
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
 
-/**
- * Upper bound on the timestamp columns pulled back for bucketing.
- *
- * The window maths runs in JS rather than SQL because this release decodes
- * `Timestamp` columns to `Temporal.PlainDateTime`, and no lib in this
- * toolchain declares the `Temporal` global — so a cutoff value cannot be
- * constructed in typed code to pass to `.gte()`. Timestamps are narrow, but
- * the cap keeps a growing table from being read in full.
- */
-const TIMESTAMP_ROW_CAP = 20_000;
-
 /** Rows in the recent-businesses table. */
 const RECENT_BUSINESS_LIMIT = 6;
 
 /** Rows in the activity feed, per source and after merging. */
 const ACTIVITY_LIMIT = 8;
-
-/**
- * A decoded `Timestamp(3)` column. The ORM hands back a Temporal
- * `PlainDateTime`, which types as `any` here for the reason above, so the
- * fields it is read through are named explicitly.
- */
-type PlainDateTimeLike = {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-};
-
-/** Wall-clock parts to epoch millis, for ordering and bucketing only. */
-function toMillis(ts: PlainDateTimeLike): number {
-  return Date.UTC(ts.year, ts.month - 1, ts.day, ts.hour, ts.minute);
-}
-
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
-/** "12 Aug" — the label under a chart bucket. */
-function formatDay(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
-}
-
-/** "12 AUG 14:05" — the timestamp under an activity row. */
-function formatStamp(ms: number): string {
-  const d = new Date(ms);
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mm = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]?.toUpperCase()} ${hh}:${mm}`;
-}
 
 /** Start of the bucket window: `CHART_WEEKS` whole weeks back from tomorrow. */
 function chartWindow(now: number) {
@@ -131,65 +86,95 @@ function delta(total: number, current: number, prior: number): StatFigure {
   return { value: total, positive };
 }
 
-/** Sum the weights of the events falling in each of the two delta windows. */
-function splitWindows(
-  events: { at: number; weight: number }[],
-  now: number,
-): { current: number; prior: number } {
-  const currentStart = now - DELTA_DAYS * DAY_MS;
-  const priorStart = now - 2 * DELTA_DAYS * DAY_MS;
-
-  let current = 0;
-  let prior = 0;
-  for (const { at, weight } of events) {
-    if (at >= currentStart) current += weight;
-    else if (at >= priorStart) prior += weight;
-  }
-  return { current, prior };
-}
-
 export async function loadOverview(): Promise<OverviewData> {
   const o = db.orm.public;
   const now = Date.now();
 
+  // The two delta windows, as cutoffs the database compares directly. `current`
+  // is everything at or after `currentStart`; `prior` is the equal-length window
+  // immediately before it, so the two never overlap.
+  const currentStart = daysAgo(DELTA_DAYS, now);
+  const priorStart = daysAgo(2 * DELTA_DAYS, now);
+
+  // Charts cover whole weeks, which is a slightly different span to the delta
+  // windows, so it gets its own cutoff rather than reusing one of theirs.
+  const chartStart = toStamp(chartWindow(now).start);
+
   const [
     businessTotal,
+    businessCurrent,
+    businessPrior,
     verifiedTotal,
+    verifiedCurrent,
+    verifiedPrior,
     reviewTotal,
+    reviewCurrent,
+    reviewPrior,
     aiTotal,
+    aiCurrent,
+    aiPrior,
     qrTotal,
     googleTotal,
     twoFactorTotal,
-    businessTimes,
-    userTimes,
+    signupTimes,
     reviewTimes,
-    analyticsRows,
     recentBusinesses,
     joinRequests,
     invitations,
     feedback,
   ] = await Promise.all([
     o.Business.aggregate((a) => ({ n: a.count() })),
+    o.Business.where((b) => b.createdAt.gte(currentStart)).aggregate((a) => ({
+      n: a.count(),
+    })),
+    o.Business.where((b) => b.createdAt.gte(priorStart))
+      .where((b) => b.createdAt.lt(currentStart))
+      .aggregate((a) => ({ n: a.count() })),
+
+    // Only verified users count as signups, to match the tile they feed.
     o.User.where((u) => u.emailVerified.eq(true)).aggregate((a) => ({
       n: a.count(),
     })),
+    o.User.where((u) => u.emailVerified.eq(true))
+      .where((u) => u.createdAt.gte(currentStart))
+      .aggregate((a) => ({ n: a.count() })),
+    o.User.where((u) => u.emailVerified.eq(true))
+      .where((u) => u.createdAt.gte(priorStart))
+      .where((u) => u.createdAt.lt(currentStart))
+      .aggregate((a) => ({ n: a.count() })),
+
     o.SharedReview.aggregate((a) => ({ n: a.count() })),
+    o.SharedReview.where((r) => r.createdAt.gte(currentStart)).aggregate(
+      (a) => ({ n: a.count() }),
+    ),
+    o.SharedReview.where((r) => r.createdAt.gte(priorStart))
+      .where((r) => r.createdAt.lt(currentStart))
+      .aggregate((a) => ({ n: a.count() })),
+
+    // aiCopyCount is a running counter on the analytics row rather than one row
+    // per generation, so a window credits the whole counter to the row's own
+    // creation date. It is the only timestamp the model carries.
     o.ReviewAnalytics.aggregate((a) => ({ n: a.sum("aiCopyCount") })),
+    o.ReviewAnalytics.where((r) => r.createdAt.gte(currentStart)).aggregate(
+      (a) => ({ n: a.sum("aiCopyCount") }),
+    ),
+    o.ReviewAnalytics.where((r) => r.createdAt.gte(priorStart))
+      .where((r) => r.createdAt.lt(currentStart))
+      .aggregate((a) => ({ n: a.sum("aiCopyCount") })),
+
     o.Business.aggregate((a) => ({ n: a.sum("qrScanCount") })),
     o.GoogleToken.aggregate((a) => ({ n: a.count() })),
     o.User.where((u) => u.twoFactorEnabled.eq(true)).aggregate((a) => ({
       n: a.count(),
     })),
 
-    o.Business.select("createdAt").limit(TIMESTAMP_ROW_CAP).all(),
-    // Only verified users count as signups, to match the tile they feed.
+    // Chart rows are bounded by the window itself, so no row cap is needed.
     o.User.where((u) => u.emailVerified.eq(true))
+      .where((u) => u.createdAt.gte(chartStart))
       .select("createdAt")
-      .limit(TIMESTAMP_ROW_CAP)
       .all(),
-    o.SharedReview.select("createdAt").limit(TIMESTAMP_ROW_CAP).all(),
-    o.ReviewAnalytics.select("createdAt", "aiCopyCount")
-      .limit(TIMESTAMP_ROW_CAP)
+    o.SharedReview.where((r) => r.createdAt.gte(chartStart))
+      .select("createdAt")
       .all(),
 
     o.Business.select("id", "name", "sector", "rating", "reviewCount")
@@ -215,43 +200,12 @@ export async function loadOverview(): Promise<OverviewData> {
       .all(),
   ]);
 
-  const businessWindow = splitWindows(
-    businessTimes.map((b) => ({ at: toMillis(b.createdAt), weight: 1 })),
-    now,
-  );
-  const userWindow = splitWindows(
-    userTimes.map((u) => ({ at: toMillis(u.createdAt), weight: 1 })),
-    now,
-  );
-  const reviewWindow = splitWindows(
-    reviewTimes.map((r) => ({ at: toMillis(r.createdAt), weight: 1 })),
-    now,
-  );
-  // aiCopyCount is a running counter on the analytics row rather than one row
-  // per generation, so a window credits the whole counter to the row's own
-  // creation date. It is the only timestamp the model carries.
-  const aiWindow = splitWindows(
-    analyticsRows.map((r) => ({
-      at: toMillis(r.createdAt),
-      weight: r.aiCopyCount,
-    })),
-    now,
-  );
-
   return {
     stats: {
-      businesses: delta(
-        businessTotal.n,
-        businessWindow.current,
-        businessWindow.prior,
-      ),
-      verifiedUsers: delta(
-        verifiedTotal.n,
-        userWindow.current,
-        userWindow.prior,
-      ),
-      reviews: delta(reviewTotal.n, reviewWindow.current, reviewWindow.prior),
-      aiGenerations: delta(aiTotal.n ?? 0, aiWindow.current, aiWindow.prior),
+      businesses: delta(businessTotal.n, businessCurrent.n, businessPrior.n),
+      verifiedUsers: delta(verifiedTotal.n, verifiedCurrent.n, verifiedPrior.n),
+      reviews: delta(reviewTotal.n, reviewCurrent.n, reviewPrior.n),
+      aiGenerations: delta(aiTotal.n ?? 0, aiCurrent.n ?? 0, aiPrior.n ?? 0),
     },
     health: [
       { id: "qrScans", label: "QR scans", value: qrTotal.n ?? 0 },
@@ -259,11 +213,11 @@ export async function loadOverview(): Promise<OverviewData> {
       { id: "twoFactor", label: "2FA enabled", value: twoFactorTotal.n },
     ],
     signups: bucketWeekly(
-      userTimes.map((u) => toMillis(u.createdAt)),
+      signupTimes.map((u) => stampToMillis(u.createdAt)),
       now,
     ),
     reviews: bucketWeekly(
-      reviewTimes.map((r) => toMillis(r.createdAt)),
+      reviewTimes.map((r) => stampToMillis(r.createdAt)),
       now,
     ),
     recentBusinesses: recentBusinesses.map((b) => ({
@@ -279,19 +233,19 @@ export async function loadOverview(): Promise<OverviewData> {
         id: `join-${j.id}`,
         kind: "join" as const,
         title: `${j.user.name} asked to join ${j.business.name}`,
-        at: toMillis(j.createdAt),
+        at: stampToMillis(j.createdAt),
       })),
       ...invitations.map((i) => ({
         id: `invite-${i.id}`,
         kind: "invite" as const,
         title: `${i.email} invited to ${i.business.name} as ${i.role}`,
-        at: toMillis(i.createdAt),
+        at: stampToMillis(i.createdAt),
       })),
       ...feedback.map((f) => ({
         id: `feedback-${f.id}`,
         kind: "feedback" as const,
         title: `${f.name} rated ${f.category} ${f.rating}/5`,
-        at: toMillis(f.createdAt),
+        at: stampToMillis(f.createdAt),
       })),
     ]
       .sort((a, b) => b.at - a.at)

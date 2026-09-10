@@ -2,6 +2,7 @@ import { Drawer } from "@base-ui/react/drawer";
 import { useMediaQuery } from "@base-ui/react/unstable-use-media-query";
 import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { useLocation } from "react-router";
 import { COLORS, OUTLINE_STROKE_WIDTH } from "../constants";
 import { sidebarDrawer } from "./drawerHandle";
 import { SidebarPanel } from "./SidebarPanel";
@@ -20,6 +21,8 @@ const RAIL_VISIBLE = "(min-width: 64rem)";
 export function SidebarDrawer() {
   const actionsRef = useRef<Drawer.Root.Actions>(null);
   const railVisible = useMediaQuery(RAIL_VISIBLE, { defaultMatches: false });
+  const { pathname } = useLocation();
+  const lastPath = useRef(pathname);
 
   // Widening the window past `lg` puts the rail back on screen. Left open,
   // the drawer would keep focus trapped behind navigation the operator can
@@ -29,6 +32,21 @@ export function SidebarDrawer() {
       actionsRef.current?.close();
     }
   }, [railVisible]);
+
+  // Following a nav link has to dismiss the drawer. It covers the page it just
+  // navigated to, so leaving it open would hide the result of the tap and trap
+  // focus behind it.
+  //
+  // Compared against the previous path rather than closing on every run, so a
+  // first render does not fire it, and keyed on pathname rather than the whole
+  // location because sorting and filtering only touch the query string and
+  // those controls are not in the drawer.
+  useEffect(() => {
+    if (lastPath.current !== pathname) {
+      lastPath.current = pathname;
+      actionsRef.current?.close();
+    }
+  }, [pathname]);
 
   return (
     <Drawer.Root

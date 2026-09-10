@@ -13,12 +13,22 @@ import {
 import type { NavLink } from "../types";
 
 /**
- * The operator sections. Only Overview is built; the rest are inert rows that
- * mark where the console is going, so none of them carry an href yet.
+ * The operator sections.
+ *
+ * A row carries a `to` once its section exists. The ones without a
+ * destination are not placeholders for their own sake: they tell an operator
+ * what this console is going to cover, and they stay inert rather than
+ * navigating to an empty page.
  */
 export const mainNavLinks: NavLink[] = [
-  { id: "overview", label: "Overview", icon: LayoutGrid, active: true },
-  { id: "businesses", label: "Businesses", icon: Building2 },
+  { id: "overview", label: "Overview", icon: LayoutGrid, to: "/" },
+  {
+    id: "businesses",
+    label: "Businesses",
+    icon: Building2,
+    to: "/businesses",
+    nested: true,
+  },
   { id: "users", label: "Users", icon: Users },
   { id: "reviews", label: "Reviews", icon: Star },
   { id: "ai-usage", label: "AI Usage", icon: Sparkles },
