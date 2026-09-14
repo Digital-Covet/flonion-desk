@@ -22,6 +22,7 @@ import type {
 
 import type {
   ContractWithTypeMaps,
+  RelationKeys,
   TypeMaps as TypeMapsType,
 } from '@prisma/orm-postgres/family-contract/types';
 import type {
@@ -1402,6 +1403,426 @@ export type StorageColumnInputTypes = {
     };
   };
 };
+
+export namespace Models {
+  export type public_Business = {
+    id: CodecTypes['pg/text@1']['output'];
+    userId: CodecTypes['pg/text@1']['output'];
+    placeId: CodecTypes['pg/text@1']['output'] | null;
+    logo: CodecTypes['pg/text@1']['output'] | null;
+    name: CodecTypes['pg/text@1']['output'];
+    phone: CodecTypes['pg/text@1']['output'] | null;
+    address: CodecTypes['pg/text@1']['output'] | null;
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    keywords: CodecTypes['pg/text@1']['output'] | null;
+    reviewLink: CodecTypes['pg/text@1']['output'] | null;
+    reviewLinks: CodecTypes['pg/jsonb@1']['output'] | null;
+    sector: CodecTypes['pg/text@1']['output'] | null;
+    username: CodecTypes['pg/text@1']['output'] | null;
+    description: CodecTypes['pg/text@1']['output'] | null;
+    rating: CodecTypes['pg/float8@1']['output'] | null;
+    reviewCount: CodecTypes['pg/int4@1']['output'] | null;
+    ratingUpdatedAt: TimestampString<3> | null;
+    bookingEndTime: CodecTypes['pg/text@1']['output'];
+    bookingStartTime: CodecTypes['pg/text@1']['output'];
+    slotDuration: CodecTypes['pg/int4@1']['output'];
+    timezone: CodecTypes['pg/text@1']['output'];
+    workingDays: CodecTypes['pg/text@1']['output'];
+    workingEndTime: CodecTypes['pg/text@1']['output'];
+    workingStartTime: CodecTypes['pg/text@1']['output'];
+    qrScanCount: CodecTypes['pg/int4@1']['output'];
+    availabilitySlots: public_AvailabilitySlot[];
+    businessContacts: public_BusinessContact[];
+    favoritePartners: public_FavoritePartner[];
+    invitations: public_Invitation[];
+    joinRequests: public_JoinRequest[];
+    meetingRequests: public_MeetingRequest[];
+    projects: public_Project[];
+    services: public_Service[];
+    sharedReviews: public_SharedReview[];
+    tasks: public_Task[];
+    teamMeetings: public_TeamMeeting[];
+    user: public_User;
+    users: public_User[];
+    readonly [RelationKeys]?:
+      | 'availabilitySlots'
+      | 'businessContacts'
+      | 'favoritePartners'
+      | 'invitations'
+      | 'joinRequests'
+      | 'meetingRequests'
+      | 'projects'
+      | 'services'
+      | 'sharedReviews'
+      | 'tasks'
+      | 'teamMeetings'
+      | 'user'
+      | 'users';
+  };
+  export type public_User = {
+    id: CodecTypes['pg/text@1']['output'];
+    name: CodecTypes['pg/text@1']['output'];
+    email: CodecTypes['pg/text@1']['output'];
+    emailVerified: CodecTypes['pg/bool@1']['output'];
+    image: CodecTypes['pg/text@1']['output'] | null;
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    twoFactorEnabled: CodecTypes['pg/bool@1']['output'] | null;
+    onboardingCompleted: CodecTypes['pg/bool@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'] | null;
+    role: CodecTypes['pg/text@1']['output'];
+    banned: CodecTypes['pg/bool@1']['output'] | null;
+    banReason: CodecTypes['pg/text@1']['output'] | null;
+    banExpires: TimestampString<3> | null;
+    accounts: public_Account[];
+    business: public_Business | null;
+    businessBusiness: public_Business | null;
+    feedbacks: public_Feedback[];
+    googleToken: public_GoogleToken | null;
+    invitations: public_Invitation[];
+    joinRequests: public_JoinRequest[];
+    joinRequestsJoinRequest: public_JoinRequest[];
+    meetingRequests: public_MeetingRequest[];
+    sessions: public_Session[];
+    sharedReviews: public_SharedReview[];
+    tasks: public_Task[];
+    twoFactors: public_TwoFactor[];
+    readonly [RelationKeys]?:
+      | 'accounts'
+      | 'business'
+      | 'businessBusiness'
+      | 'feedbacks'
+      | 'googleToken'
+      | 'invitations'
+      | 'joinRequests'
+      | 'joinRequestsJoinRequest'
+      | 'meetingRequests'
+      | 'sessions'
+      | 'sharedReviews'
+      | 'tasks'
+      | 'twoFactors';
+  };
+  export type public_Account = {
+    id: CodecTypes['pg/text@1']['output'];
+    accountId: CodecTypes['pg/text@1']['output'];
+    providerId: CodecTypes['pg/text@1']['output'];
+    userId: CodecTypes['pg/text@1']['output'];
+    accessToken: CodecTypes['pg/text@1']['output'] | null;
+    refreshToken: CodecTypes['pg/text@1']['output'] | null;
+    idToken: CodecTypes['pg/text@1']['output'] | null;
+    accessTokenExpiresAt: TimestampString<3> | null;
+    refreshTokenExpiresAt: TimestampString<3> | null;
+    scope: CodecTypes['pg/text@1']['output'] | null;
+    password: CodecTypes['pg/text@1']['output'] | null;
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    user: public_User;
+    readonly [RelationKeys]?: 'user';
+  };
+  export type public_AvailabilitySlot = {
+    id: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    date: TimestampString<3>;
+    startTime: CodecTypes['pg/text@1']['output'];
+    endTime: CodecTypes['pg/text@1']['output'];
+    isBooked: CodecTypes['pg/bool@1']['output'];
+    createdAt: TimestampString<3>;
+    title: CodecTypes['pg/text@1']['output'] | null;
+    business: public_Business;
+    meetingRequest: public_MeetingRequest | null;
+    readonly [RelationKeys]?: 'business' | 'meetingRequest';
+  };
+  export type public_BusinessContact = {
+    id: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    name: CodecTypes['pg/text@1']['output'];
+    role: CodecTypes['pg/text@1']['output'];
+    avatarUrl: CodecTypes['pg/text@1']['output'] | null;
+    email: CodecTypes['pg/text@1']['output'] | null;
+    position: CodecTypes['pg/int4@1']['output'];
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    business: public_Business;
+    readonly [RelationKeys]?: 'business';
+  };
+  export type public_FavoritePartner = {
+    id: CodecTypes['pg/text@1']['output'];
+    userId: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    createdAt: TimestampString<3>;
+    business: public_Business;
+    readonly [RelationKeys]?: 'business';
+  };
+  export type public_Feedback = {
+    id: CodecTypes['pg/text@1']['output'];
+    userId: CodecTypes['pg/text@1']['output'];
+    name: CodecTypes['pg/text@1']['output'];
+    email: CodecTypes['pg/text@1']['output'];
+    category: CodecTypes['pg/text@1']['output'];
+    rating: CodecTypes['pg/int4@1']['output'];
+    message: CodecTypes['pg/text@1']['output'];
+    createdAt: TimestampString<3>;
+    status: CodecTypes['pg/text@1']['output'];
+    assignedTo: CodecTypes['pg/text@1']['output'] | null;
+    resolvedAt: TimestampString<3> | null;
+    operatorNote: CodecTypes['pg/text@1']['output'] | null;
+    user: public_User;
+    readonly [RelationKeys]?: 'user';
+  };
+  export type public_GoogleToken = {
+    id: CodecTypes['pg/text@1']['output'];
+    userId: CodecTypes['pg/text@1']['output'];
+    accessToken: CodecTypes['pg/text@1']['output'];
+    refreshToken: CodecTypes['pg/text@1']['output'];
+    expiresAt: TimestampString<3>;
+    tokenType: CodecTypes['pg/text@1']['output'];
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    user: public_User;
+    readonly [RelationKeys]?: 'user';
+  };
+  export type public_Invitation = {
+    id: CodecTypes['pg/text@1']['output'];
+    email: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    role: CodecTypes['pg/text@1']['output'];
+    invitedById: CodecTypes['pg/text@1']['output'];
+    token: CodecTypes['pg/text@1']['output'];
+    status: CodecTypes['pg/text@1']['output'];
+    expiresAt: TimestampString<3>;
+    createdAt: TimestampString<3>;
+    business: public_Business;
+    invitedBy: public_User;
+    readonly [RelationKeys]?: 'business' | 'invitedBy';
+  };
+  export type public_JoinRequest = {
+    id: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    userId: CodecTypes['pg/text@1']['output'];
+    pendingUserId: CodecTypes['pg/text@1']['output'] | null;
+    message: CodecTypes['pg/text@1']['output'] | null;
+    status: CodecTypes['pg/text@1']['output'];
+    grantedRole: CodecTypes['pg/text@1']['output'] | null;
+    consentDeleteOwnedBusiness: CodecTypes['pg/bool@1']['output'];
+    reviewedById: CodecTypes['pg/text@1']['output'] | null;
+    reviewedAt: TimestampString<3> | null;
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    business: public_Business;
+    reviewedBy: public_User | null;
+    user: public_User;
+    readonly [RelationKeys]?: 'business' | 'reviewedBy' | 'user';
+  };
+  export type public_MeetingRequest = {
+    id: CodecTypes['pg/text@1']['output'];
+    slotId: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    requesterId: CodecTypes['pg/text@1']['output'] | null;
+    status: CodecTypes['pg/text@1']['output'];
+    message: CodecTypes['pg/text@1']['output'] | null;
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    meetSpaceId: CodecTypes['pg/text@1']['output'] | null;
+    meetUri: CodecTypes['pg/text@1']['output'] | null;
+    guestEmail: CodecTypes['pg/text@1']['output'] | null;
+    guestName: CodecTypes['pg/text@1']['output'] | null;
+    guestPhone: CodecTypes['pg/text@1']['output'] | null;
+    business: public_Business;
+    requester: public_User | null;
+    slot: public_AvailabilitySlot;
+    readonly [RelationKeys]?: 'business' | 'requester' | 'slot';
+  };
+  export type public_PrismaMigrations = {
+    id: Varchar<36>;
+    checksum: Varchar<64>;
+    finishedAt: CodecTypes['pg/timestamptz-temporal@1']['output'] | null;
+    migrationName: Varchar<255>;
+    logs: CodecTypes['pg/text@1']['output'] | null;
+    rolledBackAt: CodecTypes['pg/timestamptz-temporal@1']['output'] | null;
+    startedAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
+    appliedStepsCount: CodecTypes['pg/int4@1']['output'];
+    readonly [RelationKeys]?: never;
+  };
+  export type public_Project = {
+    id: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    imageUrl: CodecTypes['pg/text@1']['output'];
+    altText: CodecTypes['pg/text@1']['output'];
+    position: CodecTypes['pg/int4@1']['output'];
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    business: public_Business;
+    readonly [RelationKeys]?: 'business';
+  };
+  export type public_SharedReview = {
+    id: CodecTypes['pg/text@1']['output'];
+    text: CodecTypes['pg/text@1']['output'];
+    rating: CodecTypes['pg/int4@1']['output'];
+    reviewerName: CodecTypes['pg/text@1']['output'] | null;
+    userId: CodecTypes['pg/text@1']['output'];
+    createdAt: TimestampString<3>;
+    keywords: CodecTypes['pg/text@1']['output'] | null;
+    businessId: CodecTypes['pg/text@1']['output'] | null;
+    status: CodecTypes['pg/text@1']['output'];
+    hiddenById: CodecTypes['pg/text@1']['output'] | null;
+    hiddenAt: TimestampString<3> | null;
+    business: public_Business | null;
+    reviewAnalytics: public_ReviewAnalytics | null;
+    user: public_User;
+    readonly [RelationKeys]?: 'business' | 'reviewAnalytics' | 'user';
+  };
+  export type public_ReviewAnalytics = {
+    id: CodecTypes['pg/text@1']['output'];
+    reviewId: CodecTypes['pg/text@1']['output'];
+    visitCount: CodecTypes['pg/int4@1']['output'];
+    reviewCount: CodecTypes['pg/int4@1']['output'];
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    qrScanCount: CodecTypes['pg/int4@1']['output'];
+    redirectCount: CodecTypes['pg/int4@1']['output'];
+    aiCopyCount: CodecTypes['pg/int4@1']['output'];
+    platformRedirects: CodecTypes['pg/jsonb@1']['output'] | null;
+    review: public_SharedReview;
+    readonly [RelationKeys]?: 'review';
+  };
+  export type public_Service = {
+    id: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    icon: CodecTypes['pg/text@1']['output'];
+    title: CodecTypes['pg/text@1']['output'];
+    description: CodecTypes['pg/text@1']['output'];
+    position: CodecTypes['pg/int4@1']['output'];
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    business: public_Business;
+    readonly [RelationKeys]?: 'business';
+  };
+  export type public_Session = {
+    id: CodecTypes['pg/text@1']['output'];
+    expiresAt: TimestampString<3>;
+    token: CodecTypes['pg/text@1']['output'];
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    ipAddress: CodecTypes['pg/text@1']['output'] | null;
+    userAgent: CodecTypes['pg/text@1']['output'] | null;
+    userId: CodecTypes['pg/text@1']['output'];
+    impersonatedBy: CodecTypes['pg/text@1']['output'] | null;
+    user: public_User;
+    readonly [RelationKeys]?: 'user';
+  };
+  export type public_Task = {
+    id: CodecTypes['pg/text@1']['output'];
+    title: CodecTypes['pg/text@1']['output'];
+    description: CodecTypes['pg/text@1']['output'] | null;
+    column: CodecTypes['pg/text@1']['output'];
+    priority: CodecTypes['pg/text@1']['output'];
+    dueDate: TimestampString<3> | null;
+    position: CodecTypes['pg/int4@1']['output'];
+    assigneeId: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    assignee: public_User;
+    business: public_Business;
+    readonly [RelationKeys]?: 'assignee' | 'business';
+  };
+  export type public_TeamMeeting = {
+    id: CodecTypes['pg/text@1']['output'];
+    title: CodecTypes['pg/text@1']['output'];
+    date: TimestampString<3>;
+    startTime: CodecTypes['pg/text@1']['output'];
+    endTime: CodecTypes['pg/text@1']['output'];
+    location: CodecTypes['pg/text@1']['output'];
+    businessId: CodecTypes['pg/text@1']['output'];
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    meetSpaceId: CodecTypes['pg/text@1']['output'] | null;
+    meetUri: CodecTypes['pg/text@1']['output'] | null;
+    business: public_Business;
+    readonly [RelationKeys]?: 'business';
+  };
+  export type public_TwoFactor = {
+    id: CodecTypes['pg/text@1']['output'];
+    secret: CodecTypes['pg/text@1']['output'];
+    backupCodes: CodecTypes['pg/text@1']['output'];
+    userId: CodecTypes['pg/text@1']['output'];
+    verified: CodecTypes['pg/bool@1']['output'] | null;
+    failedVerificationCount: CodecTypes['pg/int4@1']['output'] | null;
+    lockedUntil: TimestampString<3> | null;
+    user: public_User;
+    readonly [RelationKeys]?: 'user';
+  };
+  export type public_Verification = {
+    id: CodecTypes['pg/text@1']['output'];
+    identifier: CodecTypes['pg/text@1']['output'];
+    value: CodecTypes['pg/text@1']['output'];
+    expiresAt: TimestampString<3>;
+    createdAt: TimestampString<3>;
+    updatedAt: TimestampString<3>;
+    readonly [RelationKeys]?: never;
+  };
+  export type public_AiUsage = {
+    id: CodecTypes['pg/text@1']['output'];
+    userId: CodecTypes['pg/text@1']['output'] | null;
+    businessId: CodecTypes['pg/text@1']['output'] | null;
+    endpoint: CodecTypes['pg/text@1']['output'];
+    stage: CodecTypes['pg/text@1']['output'];
+    model: CodecTypes['pg/text@1']['output'];
+    promptTokens: CodecTypes['pg/int4@1']['output'];
+    completionTokens: CodecTypes['pg/int4@1']['output'];
+    costUsd: CodecTypes['pg/float8@1']['output'] | null;
+    latencyMs: CodecTypes['pg/int4@1']['output'];
+    ok: CodecTypes['pg/bool@1']['output'];
+    errorKind: CodecTypes['pg/text@1']['output'] | null;
+    reviewId: CodecTypes['pg/text@1']['output'] | null;
+    ip: CodecTypes['pg/text@1']['output'] | null;
+    createdAt: TimestampString<3>;
+    readonly [RelationKeys]?: never;
+  };
+  export type public_AuditLog = {
+    id: CodecTypes['pg/text@1']['output'];
+    operatorId: CodecTypes['pg/text@1']['output'];
+    action: CodecTypes['pg/text@1']['output'];
+    entity: CodecTypes['pg/text@1']['output'];
+    entityId: CodecTypes['pg/text@1']['output'];
+    before: CodecTypes['pg/json@1']['output'] | null;
+    after: CodecTypes['pg/json@1']['output'] | null;
+    note: CodecTypes['pg/text@1']['output'] | null;
+    ip: CodecTypes['pg/text@1']['output'] | null;
+    createdAt: TimestampString<3>;
+    readonly [RelationKeys]?: never;
+  };
+}
+
+export declare const models: {
+  public: {
+    Business: Models.public_Business;
+    User: Models.public_User;
+    Account: Models.public_Account;
+    AvailabilitySlot: Models.public_AvailabilitySlot;
+    BusinessContact: Models.public_BusinessContact;
+    FavoritePartner: Models.public_FavoritePartner;
+    Feedback: Models.public_Feedback;
+    GoogleToken: Models.public_GoogleToken;
+    Invitation: Models.public_Invitation;
+    JoinRequest: Models.public_JoinRequest;
+    MeetingRequest: Models.public_MeetingRequest;
+    PrismaMigrations: Models.public_PrismaMigrations;
+    Project: Models.public_Project;
+    SharedReview: Models.public_SharedReview;
+    ReviewAnalytics: Models.public_ReviewAnalytics;
+    Service: Models.public_Service;
+    Session: Models.public_Session;
+    Task: Models.public_Task;
+    TeamMeeting: Models.public_TeamMeeting;
+    TwoFactor: Models.public_TwoFactor;
+    Verification: Models.public_Verification;
+    AiUsage: Models.public_AiUsage;
+    AuditLog: Models.public_AuditLog;
+  };
+};
+
 export type TypeMaps = TypeMapsType<
   CodecTypes,
   QueryOperationTypes,
@@ -3822,6 +4243,7 @@ type ContractBase = Omit<
               readonly user: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['userId'];
                   readonly targetFields: readonly ['id'];
@@ -4053,6 +4475,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -4064,6 +4487,7 @@ type ContractBase = Omit<
                   readonly model: 'MeetingRequest';
                 };
                 readonly cardinality: '1:1';
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['id'];
                   readonly targetFields: readonly ['slotId'];
@@ -4326,6 +4750,7 @@ type ContractBase = Omit<
               readonly user: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['userId'];
                   readonly targetFields: readonly ['id'];
@@ -4427,6 +4852,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -4479,6 +4905,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -4559,6 +4986,7 @@ type ContractBase = Omit<
               readonly user: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['userId'];
                   readonly targetFields: readonly ['id'];
@@ -4635,6 +5063,7 @@ type ContractBase = Omit<
               readonly user: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['userId'];
                   readonly targetFields: readonly ['id'];
@@ -4710,6 +5139,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -4718,6 +5148,7 @@ type ContractBase = Omit<
               readonly invitedBy: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['invitedById'];
                   readonly targetFields: readonly ['id'];
@@ -4810,6 +5241,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -4818,6 +5250,7 @@ type ContractBase = Omit<
               readonly reviewedBy: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['reviewedById'];
                   readonly targetFields: readonly ['id'];
@@ -4826,6 +5259,7 @@ type ContractBase = Omit<
               readonly user: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['userId'];
                   readonly targetFields: readonly ['id'];
@@ -4923,6 +5357,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -4931,6 +5366,7 @@ type ContractBase = Omit<
               readonly requester: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['requesterId'];
                   readonly targetFields: readonly ['id'];
@@ -4942,6 +5378,7 @@ type ContractBase = Omit<
                   readonly model: 'AvailabilitySlot';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['slotId'];
                   readonly targetFields: readonly ['id'];
@@ -5086,6 +5523,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -5164,6 +5602,7 @@ type ContractBase = Omit<
                   readonly model: 'SharedReview';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['reviewId'];
                   readonly targetFields: readonly ['id'];
@@ -5237,6 +5676,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -5313,6 +5753,7 @@ type ContractBase = Omit<
               readonly user: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['userId'];
                   readonly targetFields: readonly ['id'];
@@ -5397,6 +5838,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -5408,6 +5850,7 @@ type ContractBase = Omit<
                   readonly model: 'ReviewAnalytics';
                 };
                 readonly cardinality: '1:1';
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['id'];
                   readonly targetFields: readonly ['reviewId'];
@@ -5416,6 +5859,7 @@ type ContractBase = Omit<
               readonly user: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['userId'];
                   readonly targetFields: readonly ['id'];
@@ -5503,6 +5947,7 @@ type ContractBase = Omit<
               readonly assignee: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['assigneeId'];
                   readonly targetFields: readonly ['id'];
@@ -5514,6 +5959,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -5604,6 +6050,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -5667,6 +6114,7 @@ type ContractBase = Omit<
               readonly user: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
+                readonly nullable: false;
                 readonly on: {
                   readonly localFields: readonly ['userId'];
                   readonly targetFields: readonly ['id'];
@@ -5776,6 +6224,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: '1:1';
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['id'];
                   readonly targetFields: readonly ['userId'];
@@ -5787,6 +6236,7 @@ type ContractBase = Omit<
                   readonly model: 'Business';
                 };
                 readonly cardinality: 'N:1';
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['businessId'];
                   readonly targetFields: readonly ['id'];
@@ -5809,6 +6259,7 @@ type ContractBase = Omit<
                   readonly model: 'GoogleToken';
                 };
                 readonly cardinality: '1:1';
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['id'];
                   readonly targetFields: readonly ['userId'];
