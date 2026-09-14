@@ -1,4 +1,5 @@
 import { DirectionProvider } from "@base-ui/react/direction-provider";
+import { Toast } from "@base-ui/react/toast";
 import { Tooltip } from "@base-ui/react/tooltip";
 import {
   isRouteErrorResponse,
@@ -10,6 +11,10 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import {
+  OperatorToastViewport,
+  toastManager,
+} from "./components/ui/OperatorToast";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -35,7 +40,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         */}
         <DirectionProvider>
           <Tooltip.Provider delay={300} timeout={300}>
-            {children}
+            <Toast.Provider toastManager={toastManager}>
+              {children}
+              <OperatorToastViewport />
+            </Toast.Provider>
           </Tooltip.Provider>
         </DirectionProvider>
         <ScrollRestoration />
