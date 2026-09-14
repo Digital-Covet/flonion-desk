@@ -19,6 +19,15 @@ function required(name: string): string {
 }
 
 function createAuth() {
+  // The IAM (iam-digitalcovet, @better-auth/oauth-provider) does not serve a
+  // usable OIDC discovery document: `/.well-known/openid-configuration` on
+  // the IAM root returns the marketing page (HTML), so genericOAuth's
+  // discovery fetch yields no endpoints and the provider is silently skipped
+  // at init - every sign-in then fails with PROVIDER_NOT_FOUND. Point at the
+  // OAuth2 endpoints explicitly instead of relying on discovery.
+  const iamBaseUrl =
+    process.env.IAM_BASE_URL?.replace(/\/$/, "") ||
+    "https://iam.digitalcovet.com";
   return betterAuth({
     baseURL: required("BETTER_AUTH_URL"),
     secret: required("BETTER_AUTH_SECRET"),
@@ -29,8 +38,10 @@ function createAuth() {
             providerId: "desk",
             clientId: required("OAUTH_CLIENT_ID_DESK"),
             clientSecret: required("OAUTH_CLIENT_SECRET_DESK"),
-            discoveryUrl:
-              "https://iam.digitalcovet.com/.well-known/openid-configuration",
+            authorizationUrl: `${iamBaseUrl}/api/auth/oauth2/authorize`,
+            tokenUrl: `${iamBaseUrl}/api/auth/oauth2/token`,
+            userInfoUrl: `${iamBaseUrl}/api/auth/oauth2/userinfo`,
+            scopes: ["openid", "profile", "email", "offline_access"],
           },
         ],
       }),
