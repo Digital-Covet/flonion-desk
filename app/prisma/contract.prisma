@@ -32,6 +32,7 @@ model Business {
   description       String?
   rating            Float?
   reviewCount       Int?
+  ratingUpdatedAt   TimestampString(3)?
   bookingEndTime    String             @default("17:00")
   bookingStartTime  String             @default("14:00")
   slotDuration      Int                @default(30)
@@ -48,6 +49,7 @@ model Business {
   meetingRequests   MeetingRequest[]
   projects          Project[]
   services          Service[]
+  sharedReviews     SharedReview[]
   tasks             Task[]
   teamMeetings      TeamMeeting[]
   users             User[]
@@ -72,6 +74,9 @@ model User {
   onboardingCompleted     Boolean          @default(false)
   businessId              String?
   role                    String           @default("member")
+  banned                  Boolean?         @default(false)
+  banReason               String?
+  banExpires              TimestampString(3)?
   accounts                Account[]
   business                Business?
   feedbacks               Feedback[]
@@ -158,17 +163,22 @@ model FavoritePartner {
 }
 
 model Feedback {
-  id        String       @id(map: "feedback_pkey")
-  userId    String
-  name      String
-  email     String
-  category  String
-  rating    Int
-  message   String
-  createdAt TimestampString(3) @default(now())
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "feedback_userId_fkey")
+  id           String       @id(map: "feedback_pkey")
+  userId       String
+  name         String
+  email        String
+  category     String
+  rating       Int
+  message      String
+  createdAt    TimestampString(3) @default(now())
+  status       String       @default("new")
+  assignedTo   String?
+  resolvedAt   TimestampString(3)?
+  operatorNote String?
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "feedback_userId_fkey")
 
   @@index([userId], map: "feedback_userId_idx")
+  @@index([status, createdAt], map: "feedback_status_createdAt_idx")
   @@map("feedback")
 }
 
@@ -288,10 +298,17 @@ model SharedReview {
   userId          String
   createdAt       TimestampString(3)     @default(now())
   keywords        String?
+  businessId      String?
+  status          String           @default("visible")
+  hiddenById      String?
+  hiddenAt        TimestampString(3)?
   reviewAnalytics ReviewAnalytics?
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "shared_review_userId_fkey")
+  business        Business?        @relation(fields: [businessId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "shared_review_businessId_fkey")
 
   @@index([userId], map: "shared_review_userId_idx")
+  @@index([businessId], map: "shared_review_businessId_idx")
+  @@index([status], map: "shared_review_status_idx")
   @@map("shared_review")
 }
 
@@ -329,15 +346,16 @@ model Service {
 }
 
 model Session {
-  id        String       @id(map: "session_pkey")
-  expiresAt TimestampString(3)
-  token     String
-  createdAt TimestampString(3) @default(now())
-  updatedAt TimestampString(3)
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "session_userId_fkey")
+  id              String       @id(map: "session_pkey")
+  expiresAt       TimestampString(3)
+  token           String
+  createdAt       TimestampString(3) @default(now())
+  updatedAt       TimestampString(3)
+  ipAddress       String?
+  userAgent       String?
+  userId          String
+  impersonatedBy  String?
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "session_userId_fkey")
 
   @@index([token], map: "session_token_key", unique: true)
   @@index([userId], map: "session_userId_idx")
@@ -407,4 +425,46 @@ model Verification {
 
   @@index([identifier], map: "verification_identifier_idx")
   @@map("verification")
+}
+
+model AiUsage {
+  id               String           @id(map: "ai_usage_pkey")
+  userId           String?
+  businessId       String?
+  endpoint         String
+  stage            String
+  model            String
+  promptTokens     Int              @default(0)
+  completionTokens Int              @default(0)
+  costUsd          Float?
+  latencyMs        Int
+  ok               Boolean          @default(true)
+  errorKind        String?
+  reviewId         String?
+  ip               String?
+  createdAt        TimestampString(3) @default(now())
+
+  @@index([createdAt], map: "ai_usage_createdAt_idx")
+  @@index([userId, createdAt], map: "ai_usage_userId_createdAt_idx")
+  @@index([businessId, createdAt], map: "ai_usage_businessId_createdAt_idx")
+  @@index([endpoint, createdAt], map: "ai_usage_endpoint_createdAt_idx")
+  @@map("ai_usage")
+}
+
+model AuditLog {
+  id         String       @id(map: "audit_log_pkey")
+  operatorId String
+  action     String
+  entity     String
+  entityId   String
+  before     Json?
+  after      Json?
+  note       String?
+  ip         String?
+  createdAt  TimestampString(3) @default(now())
+
+  @@index([entity, entityId, createdAt], map: "audit_log_entity_entityId_createdAt_idx")
+  @@index([operatorId, createdAt], map: "audit_log_operatorId_createdAt_idx")
+  @@index([createdAt], map: "audit_log_createdAt_idx")
+  @@map("audit_log")
 }

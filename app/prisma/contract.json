@@ -12,6 +12,14 @@
       "model": "Account",
       "namespace": "public"
     },
+    "ai_usage": {
+      "model": "AiUsage",
+      "namespace": "public"
+    },
+    "audit_log": {
+      "model": "AuditLog",
+      "namespace": "public"
+    },
     "availability_slot": {
       "model": "AvailabilitySlot",
       "namespace": "public"
@@ -258,6 +266,284 @@
               "table": "account"
             }
           },
+          "AiUsage": {
+            "fields": {
+              "businessId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "completionTokens": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "costUsd": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/float8@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "endpoint": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "errorKind": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "ip": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "latencyMs": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "model": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "ok": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "promptTokens": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "reviewId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "stage": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "userId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {},
+            "storage": {
+              "fields": {
+                "businessId": {
+                  "column": "businessId"
+                },
+                "completionTokens": {
+                  "column": "completionTokens"
+                },
+                "costUsd": {
+                  "column": "costUsd"
+                },
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "endpoint": {
+                  "column": "endpoint"
+                },
+                "errorKind": {
+                  "column": "errorKind"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "ip": {
+                  "column": "ip"
+                },
+                "latencyMs": {
+                  "column": "latencyMs"
+                },
+                "model": {
+                  "column": "model"
+                },
+                "ok": {
+                  "column": "ok"
+                },
+                "promptTokens": {
+                  "column": "promptTokens"
+                },
+                "reviewId": {
+                  "column": "reviewId"
+                },
+                "stage": {
+                  "column": "stage"
+                },
+                "userId": {
+                  "column": "userId"
+                }
+              },
+              "namespaceId": "public",
+              "table": "ai_usage"
+            }
+          },
+          "AuditLog": {
+            "fields": {
+              "action": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "after": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/json@1",
+                  "kind": "scalar"
+                }
+              },
+              "before": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/json@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "entity": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "entityId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "ip": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "note": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "operatorId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {},
+            "storage": {
+              "fields": {
+                "action": {
+                  "column": "action"
+                },
+                "after": {
+                  "column": "after"
+                },
+                "before": {
+                  "column": "before"
+                },
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "entity": {
+                  "column": "entity"
+                },
+                "entityId": {
+                  "column": "entityId"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "ip": {
+                  "column": "ip"
+                },
+                "note": {
+                  "column": "note"
+                },
+                "operatorId": {
+                  "column": "operatorId"
+                }
+              },
+              "namespaceId": "public",
+              "table": "audit_log"
+            }
+          },
           "AvailabilitySlot": {
             "fields": {
               "businessId": {
@@ -474,6 +760,16 @@
                   "kind": "scalar"
                 }
               },
+              "ratingUpdatedAt": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
               "reviewCount": {
                 "nullable": true,
                 "type": {
@@ -651,6 +947,17 @@
                   "namespace": "public"
                 }
               },
+              "sharedReviews": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": ["id"],
+                  "targetFields": ["businessId"]
+                },
+                "to": {
+                  "model": "SharedReview",
+                  "namespace": "public"
+                }
+              },
               "tasks": {
                 "cardinality": "1:N",
                 "on": {
@@ -736,6 +1043,9 @@
                 },
                 "rating": {
                   "column": "rating"
+                },
+                "ratingUpdatedAt": {
+                  "column": "ratingUpdatedAt"
                 },
                 "reviewCount": {
                   "column": "reviewCount"
@@ -965,6 +1275,13 @@
           },
           "Feedback": {
             "fields": {
+              "assignedTo": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "category": {
                 "nullable": false,
                 "type": {
@@ -1010,10 +1327,34 @@
                   "kind": "scalar"
                 }
               },
+              "operatorNote": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "rating": {
                 "nullable": false,
                 "type": {
                   "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "resolvedAt": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "status": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
                   "kind": "scalar"
                 }
               },
@@ -1040,6 +1381,9 @@
             },
             "storage": {
               "fields": {
+                "assignedTo": {
+                  "column": "assignedTo"
+                },
                 "category": {
                   "column": "category"
                 },
@@ -1058,8 +1402,17 @@
                 "name": {
                   "column": "name"
                 },
+                "operatorNote": {
+                  "column": "operatorNote"
+                },
                 "rating": {
                   "column": "rating"
+                },
+                "resolvedAt": {
+                  "column": "resolvedAt"
+                },
+                "status": {
+                  "column": "status"
                 },
                 "userId": {
                   "column": "userId"
@@ -2132,6 +2485,13 @@
                   "kind": "scalar"
                 }
               },
+              "impersonatedBy": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "ipAddress": {
                 "nullable": true,
                 "type": {
@@ -2195,6 +2555,9 @@
                 "id": {
                   "column": "id"
                 },
+                "impersonatedBy": {
+                  "column": "impersonatedBy"
+                },
                 "ipAddress": {
                   "column": "ipAddress"
                 },
@@ -2217,6 +2580,13 @@
           },
           "SharedReview": {
             "fields": {
+              "businessId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "createdAt": {
                 "nullable": false,
                 "type": {
@@ -2225,6 +2595,23 @@
                   "typeParams": {
                     "precision": 3
                   }
+                }
+              },
+              "hiddenAt": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "hiddenById": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
                 }
               },
               "id": {
@@ -2255,6 +2642,13 @@
                   "kind": "scalar"
                 }
               },
+              "status": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "text": {
                 "nullable": false,
                 "type": {
@@ -2271,6 +2665,17 @@
               }
             },
             "relations": {
+              "business": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": ["businessId"],
+                  "targetFields": ["id"]
+                },
+                "to": {
+                  "model": "Business",
+                  "namespace": "public"
+                }
+              },
               "reviewAnalytics": {
                 "cardinality": "1:1",
                 "on": {
@@ -2296,8 +2701,17 @@
             },
             "storage": {
               "fields": {
+                "businessId": {
+                  "column": "businessId"
+                },
                 "createdAt": {
                   "column": "createdAt"
+                },
+                "hiddenAt": {
+                  "column": "hiddenAt"
+                },
+                "hiddenById": {
+                  "column": "hiddenById"
                 },
                 "id": {
                   "column": "id"
@@ -2310,6 +2724,9 @@
                 },
                 "reviewerName": {
                   "column": "reviewerName"
+                },
+                "status": {
+                  "column": "status"
                 },
                 "text": {
                   "column": "text"
@@ -2715,6 +3132,30 @@
           },
           "User": {
             "fields": {
+              "banExpires": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "banReason": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "banned": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
               "businessId": {
                 "nullable": true,
                 "type": {
@@ -2946,6 +3387,15 @@
             },
             "storage": {
               "fields": {
+                "banExpires": {
+                  "column": "banExpires"
+                },
+                "banReason": {
+                  "column": "banReason"
+                },
+                "banned": {
+                  "column": "banned"
+                },
                 "businessId": {
                   "column": "businessId"
                 },
@@ -3255,6 +3705,216 @@
               },
               "uniques": []
             },
+            "ai_usage": {
+              "columns": {
+                "businessId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "completionTokens": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "costUsd": {
+                  "codecId": "pg/float8@1",
+                  "nativeType": "float8",
+                  "nullable": true
+                },
+                "createdAt": {
+                  "codecId": "pg/timestamp-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamp",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "endpoint": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "errorKind": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "id": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "ip": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "latencyMs": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "model": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "ok": {
+                  "codecId": "pg/bool@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": true
+                  },
+                  "nativeType": "bool",
+                  "nullable": false
+                },
+                "promptTokens": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "reviewId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "stage": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "userId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                }
+              },
+              "foreignKeys": [],
+              "indexes": [
+                {
+                  "columns": ["businessId", "createdAt"],
+                  "name": "ai_usage_businessId_createdAt_idx",
+                  "unique": false
+                },
+                {
+                  "columns": ["createdAt"],
+                  "name": "ai_usage_createdAt_idx",
+                  "unique": false
+                },
+                {
+                  "columns": ["endpoint", "createdAt"],
+                  "name": "ai_usage_endpoint_createdAt_idx",
+                  "unique": false
+                },
+                {
+                  "columns": ["userId", "createdAt"],
+                  "name": "ai_usage_userId_createdAt_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": ["id"],
+                "name": "ai_usage_pkey"
+              },
+              "uniques": []
+            },
+            "audit_log": {
+              "columns": {
+                "action": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "after": {
+                  "codecId": "pg/json@1",
+                  "nativeType": "json",
+                  "nullable": true
+                },
+                "before": {
+                  "codecId": "pg/json@1",
+                  "nativeType": "json",
+                  "nullable": true
+                },
+                "createdAt": {
+                  "codecId": "pg/timestamp-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamp",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "entity": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "entityId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "ip": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "note": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "operatorId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [],
+              "indexes": [
+                {
+                  "columns": ["createdAt"],
+                  "name": "audit_log_createdAt_idx",
+                  "unique": false
+                },
+                {
+                  "columns": ["entity", "entityId", "createdAt"],
+                  "name": "audit_log_entity_entityId_createdAt_idx",
+                  "unique": false
+                },
+                {
+                  "columns": ["operatorId", "createdAt"],
+                  "name": "audit_log_operatorId_createdAt_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": ["id"],
+                "name": "audit_log_pkey"
+              },
+              "uniques": []
+            },
             "availability_slot": {
               "columns": {
                 "businessId": {
@@ -3432,6 +4092,14 @@
                   "codecId": "pg/float8@1",
                   "nativeType": "float8",
                   "nullable": true
+                },
+                "ratingUpdatedAt": {
+                  "codecId": "pg/timestamp-string@1",
+                  "nativeType": "timestamp",
+                  "nullable": true,
+                  "typeParams": {
+                    "precision": 3
+                  }
                 },
                 "reviewCount": {
                   "codecId": "pg/int4@1",
@@ -3726,6 +4394,11 @@
             },
             "feedback": {
               "columns": {
+                "assignedTo": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "category": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -3763,9 +4436,31 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "operatorNote": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "rating": {
                   "codecId": "pg/int4@1",
                   "nativeType": "int4",
+                  "nullable": false
+                },
+                "resolvedAt": {
+                  "codecId": "pg/timestamp-string@1",
+                  "nativeType": "timestamp",
+                  "nullable": true,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "status": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "new"
+                  },
+                  "nativeType": "text",
                   "nullable": false
                 },
                 "userId": {
@@ -3792,6 +4487,11 @@
                 }
               ],
               "indexes": [
+                {
+                  "columns": ["status", "createdAt"],
+                  "name": "feedback_status_createdAt_idx",
+                  "unique": false
+                },
                 {
                   "columns": ["userId"],
                   "name": "feedback_userId_idx",
@@ -4638,6 +5338,11 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "impersonatedBy": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "ipAddress": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -4704,6 +5409,11 @@
             },
             "shared_review": {
               "columns": {
+                "businessId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "createdAt": {
                   "codecId": "pg/timestamp-string@1",
                   "default": {
@@ -4715,6 +5425,19 @@
                   "typeParams": {
                     "precision": 3
                   }
+                },
+                "hiddenAt": {
+                  "codecId": "pg/timestamp-string@1",
+                  "nativeType": "timestamp",
+                  "nullable": true,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "hiddenById": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
                 },
                 "id": {
                   "codecId": "pg/text@1",
@@ -4735,6 +5458,15 @@
                   "codecId": "pg/text@1",
                   "nativeType": "text",
                   "nullable": true
+                },
+                "status": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "visible"
+                  },
+                  "nativeType": "text",
+                  "nullable": false
                 },
                 "text": {
                   "codecId": "pg/text@1",
@@ -4762,9 +5494,34 @@
                     "namespaceId": "public",
                     "tableName": "user"
                   }
+                },
+                {
+                  "name": "shared_review_businessId_fkey",
+                  "onDelete": "setNull",
+                  "onUpdate": "cascade",
+                  "source": {
+                    "columns": ["businessId"],
+                    "namespaceId": "public",
+                    "tableName": "shared_review"
+                  },
+                  "target": {
+                    "columns": ["id"],
+                    "namespaceId": "public",
+                    "tableName": "business"
+                  }
                 }
               ],
               "indexes": [
+                {
+                  "columns": ["businessId"],
+                  "name": "shared_review_businessId_idx",
+                  "unique": false
+                },
+                {
+                  "columns": ["status"],
+                  "name": "shared_review_status_idx",
+                  "unique": false
+                },
                 {
                   "columns": ["userId"],
                   "name": "shared_review_userId_idx",
@@ -5097,6 +5854,28 @@
             },
             "user": {
               "columns": {
+                "banExpires": {
+                  "codecId": "pg/timestamp-string@1",
+                  "nativeType": "timestamp",
+                  "nullable": true,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "banReason": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "banned": {
+                  "codecId": "pg/bool@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "nativeType": "bool",
+                  "nullable": true
+                },
                 "businessId": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -5280,7 +6059,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "2fbf22fc2799ab7927cd9eb8e512fd61764840fe89138dc2c15970de99c3c57e"
+    "storageHash": "5010099b83edcb784eb84c99dbaed26649d646c9ba07df8984a11b4560d04b48"
   },
   "capabilities": {
     "postgres": {
