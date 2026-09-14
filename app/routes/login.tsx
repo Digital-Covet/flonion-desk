@@ -6,9 +6,50 @@ export function meta(_: Route.MetaArgs) {
   return [{ title: "Flonion Desk — Sign In" }];
 }
 
+/**
+ * Only a same-origin path may be the post-login destination.
+ *
+ * `returnTo` comes from the URL, so a crafted sign-in link could otherwise send
+ * an operator to another site the moment better-auth's origin check is widened.
+ * The fully decoded form is what gets checked: `/%2f%2fevil.example` is a path
+ * to the browser but `//evil.example` to anything that decodes it first, and
+ * browsers drop tabs and newlines, so `/\t/evil.example` is protocol-relative
+ * too.
+ */
+function safeReturnTo(raw: string | null): string {
+  if (!raw?.startsWith("/")) return "/";
+
+  // Decode until stable. Malformed escapes, or nesting deeper than any real
+  // link would carry, are refused rather than guessed at.
+  let decoded = raw;
+  for (let depth = 0; ; depth++) {
+    let next: string;
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      return "/";
+    }
+    if (next === decoded) break;
+    if (depth === 4) return "/";
+    decoded = next;
+  }
+
+  const cleaned = [...decoded]
+    .filter((ch) => {
+      const code = ch.charCodeAt(0);
+      return code > 0x1f && code !== 0x7f;
+    })
+    .join("");
+  const isLocalPath =
+    cleaned.startsWith("/") &&
+    !cleaned.startsWith("//") &&
+    !cleaned.includes("\\");
+  return isLocalPath ? raw : "/";
+}
+
 export default function Login() {
   const [params] = useSearchParams();
-  const returnTo = params.get("returnTo") || "/";
+  const returnTo = safeReturnTo(params.get("returnTo"));
 
   const handleSignIn = async () => {
     await authClient.signIn.social({
