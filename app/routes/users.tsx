@@ -9,7 +9,7 @@ import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
 import { requireOperator, requireOperatorRead } from "../prisma/operator";
-import { readPageParams } from "../prisma/paging";
+import { readPageParams, readWindowDays } from "../prisma/paging";
 import { toStamp } from "../prisma/time";
 import { loadUserList, USER_SORT_KEYS } from "../prisma/users";
 import type { Route } from "./+types/users";
@@ -35,9 +35,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     twoFactor: url.searchParams.get("twoFactor") as "yes" | "no" | null,
     onboarded: url.searchParams.get("onboarded") as "yes" | "no" | null,
     banned: url.searchParams.get("banned") as "yes" | "no" | null,
-    createdWithinDays: url.searchParams.get("createdWithinDays")
-      ? Number.parseInt(url.searchParams.get("createdWithinDays") ?? "0", 10)
-      : null,
+    createdWithinDays: readWindowDays(url.searchParams),
   };
 
   try {

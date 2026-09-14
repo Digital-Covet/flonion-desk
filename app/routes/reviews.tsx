@@ -9,7 +9,7 @@ import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
 import { requireOperator, requireOperatorRead } from "../prisma/operator";
-import { readPageParams } from "../prisma/paging";
+import { readPageParams, readWindowDays } from "../prisma/paging";
 import { loadReviewList, REVIEW_SORT_KEYS } from "../prisma/reviews";
 import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/reviews";
@@ -27,9 +27,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const params = readPageParams(url, REVIEW_SORT_KEYS);
 
+  // Non-numeric entries are dropped rather than passed to the query as NaN.
   const ratings =
-    url.searchParams.get("ratings")?.split(",").filter(Boolean).map(Number) ??
-    [];
+    url.searchParams
+      .get("ratings")
+      ?.split(",")
+      .filter(Boolean)
+      .map(Number)
+      .filter(Number.isInteger) ?? [];
   const statuses =
     url.searchParams.get("statuses")?.split(",").filter(Boolean) ?? [];
 
@@ -39,9 +44,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     statuses,
     hasAnalytics: url.searchParams.get("hasAnalytics") as "yes" | "no" | null,
     businessId: url.searchParams.get("businessId"),
-    createdWithinDays: url.searchParams.get("createdWithinDays")
-      ? Number.parseInt(url.searchParams.get("createdWithinDays") ?? "0", 10)
-      : null,
+    createdWithinDays: readWindowDays(url.searchParams),
   };
 
   try {

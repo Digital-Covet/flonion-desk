@@ -8,7 +8,7 @@ import { SearchField } from "../components/ui/FilterSelect";
 import { AI_USAGE_SORT_KEYS, loadAiUsageList } from "../prisma/ai-usage";
 import { readFailure } from "../prisma/loader-error";
 import { requireOperatorRead } from "../prisma/operator";
-import { readPageParams } from "../prisma/paging";
+import { readPageParams, readWindowDays } from "../prisma/paging";
 import type { Route } from "./+types/ai-usage";
 import type { ConsoleContext } from "./console";
 
@@ -31,9 +31,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     ok: url.searchParams.get("ok") as "yes" | "no" | null,
     userId: url.searchParams.get("userId"),
     businessId: url.searchParams.get("businessId"),
-    createdWithinDays: url.searchParams.get("createdWithinDays")
-      ? Number.parseInt(url.searchParams.get("createdWithinDays") ?? "0", 10)
-      : null,
+    createdWithinDays: readWindowDays(url.searchParams),
   };
 
   try {

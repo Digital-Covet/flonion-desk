@@ -46,6 +46,9 @@ export function readBusinessFilters(url: URL): BusinessFilters {
     const n = Number.parseFloat(p.get(key) ?? "");
     return Number.isFinite(n) ? n : null;
   };
+  // Bounded because far past a century `daysAgo` builds an out-of-range Date
+  // and throws, which would blank the table behind a read failure.
+  const createdWithin = num("createdWithin");
 
   return {
     q: p.get("q"),
@@ -53,7 +56,10 @@ export function readBusinessFilters(url: URL): BusinessFilters {
     minRating: num("minRating"),
     hasRating: yesNo("hasRating"),
     claimed: yesNo("claimed"),
-    createdWithinDays: num("createdWithin"),
+    createdWithinDays:
+      createdWithin !== null && createdWithin >= 0 && createdWithin <= 36_500
+        ? createdWithin
+        : null,
   };
 }
 

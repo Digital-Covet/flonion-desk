@@ -1,5 +1,6 @@
 /**
- * Pagination, sorting and search-term handling shared by every section list.
+ * Pagination, sorting, filter and search-term handling shared by every section
+ * list.
  *
  * Section loaders read their parameters from the URL rather than component
  * state, so a filtered table is a link an operator can send to someone else and
@@ -18,6 +19,22 @@ const DEFAULT_SIZE = 25;
  * cross-tenant table for every row at once.
  */
 const MAX_SIZE = 100;
+
+/**
+ * Hard ceiling on the page number.
+ *
+ * Far enough out, `(page - 1) * size` overflows Postgres' `OFFSET` and the read
+ * fails. No section is anywhere near this many pages.
+ */
+const MAX_PAGE = 1_000_000;
+
+/**
+ * Longest "created within N days" window a filter accepts.
+ *
+ * Far enough past this, `daysAgo` builds a `Date` outside the range JS can
+ * represent and `toISOString()` throws.
+ */
+const MAX_WINDOW_DAYS = 36_500;
 
 export type SortDir = "asc" | "desc";
 
@@ -58,13 +75,14 @@ export function readPageParams<const TSort extends string>(
   url: URL,
   sortKeys: readonly TSort[],
   defaultDir: SortDir = "desc",
+  defaultSize: number = DEFAULT_SIZE,
 ): PageParams<TSort> {
   const params = url.searchParams;
 
-  const page = Math.max(1, toInt(params.get("page"), 1));
+  const page = Math.min(MAX_PAGE, Math.max(1, toInt(params.get("page"), 1)));
   const size = Math.min(
     MAX_SIZE,
-    Math.max(1, toInt(params.get("size"), DEFAULT_SIZE)),
+    Math.max(1, toInt(params.get("size"), defaultSize)),
   );
 
   const requested = params.get("sort") as TSort | null;
@@ -76,6 +94,33 @@ export function readPageParams<const TSort extends string>(
   const dir: SortDir = params.get("dir") === "asc" ? "asc" : defaultDir;
 
   return { page, size, sort, dir, offset: (page - 1) * size };
+}
+
+/**
+ * Read an optional integer filter out of the URL.
+ *
+ * A missing, non-integer or out-of-range value reads as `null`, so a
+ * hand-edited link drops the filter instead of sending `NaN` towards the
+ * database and blanking the section behind a read failure.
+ */
+export function readIntParam(
+  params: URLSearchParams,
+  key: string,
+  min: number,
+  max: number,
+): number | null {
+  const raw = params.get(key);
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= min && n <= max ? n : null;
+}
+
+/** A "created within N days" filter, bounded so `daysAgo` cannot throw. */
+export function readWindowDays(
+  params: URLSearchParams,
+  key = "createdWithinDays",
+): number | null {
+  return readIntParam(params, key, 0, MAX_WINDOW_DAYS);
 }
 
 /** Wrap a fetched page and its total count for the pager component. */

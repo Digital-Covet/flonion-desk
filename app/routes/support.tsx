@@ -9,7 +9,7 @@ import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
 import { requireOperator, requireOperatorRead } from "../prisma/operator";
-import { readPageParams } from "../prisma/paging";
+import { readIntParam, readPageParams, readWindowDays } from "../prisma/paging";
 import { loadSupportList, SUPPORT_SORT_KEYS } from "../prisma/support";
 import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/support";
@@ -36,12 +36,9 @@ export async function loader({ request }: Route.LoaderArgs) {
     q: url.searchParams.get("q"),
     categories,
     statuses,
-    rating: url.searchParams.get("rating")
-      ? Number.parseInt(url.searchParams.get("rating") ?? "0", 10)
-      : null,
-    createdWithinDays: url.searchParams.get("createdWithinDays")
-      ? Number.parseInt(url.searchParams.get("createdWithinDays") ?? "0", 10)
-      : null,
+    // Feedback is rated out of five.
+    rating: readIntParam(url.searchParams, "rating", 1, 5),
+    createdWithinDays: readWindowDays(url.searchParams),
   };
 
   try {

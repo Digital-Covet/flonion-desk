@@ -4,8 +4,13 @@ import { SectionError } from "../components/shell/SectionError";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
 import { requireOperatorRead } from "../prisma/operator";
+import { readPageParams } from "../prisma/paging";
 import type { Route } from "./+types/audit";
 import type { ConsoleContext } from "./console";
+
+/** The log is only ever read newest first. */
+const AUDIT_SORT_KEYS = ["createdAt"] as const;
+const AUDIT_PAGE_SIZE = 50;
 
 export function meta(_: Route.MetaArgs) {
   return [
@@ -19,16 +24,12 @@ export function meta(_: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireOperatorRead(request);
-  const url = new URL(request.url);
-  const page = Math.max(
-    1,
-    Number.parseInt(url.searchParams.get("page") ?? "1", 10),
+  const { page, size, offset } = readPageParams(
+    new URL(request.url),
+    AUDIT_SORT_KEYS,
+    "desc",
+    AUDIT_PAGE_SIZE,
   );
-  const size = Math.min(
-    100,
-    Math.max(1, Number.parseInt(url.searchParams.get("size") ?? "50", 10)),
-  );
-  const offset = (page - 1) * size;
 
   try {
     const [rows, total] = await Promise.all([

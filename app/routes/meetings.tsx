@@ -11,7 +11,7 @@ import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
 import { loadMeetingList, MEETING_SORT_KEYS } from "../prisma/meetings";
 import { requireOperator, requireOperatorRead } from "../prisma/operator";
-import { readPageParams } from "../prisma/paging";
+import { readPageParams, readWindowDays } from "../prisma/paging";
 import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/meetings";
 import type { ConsoleContext } from "./console";
@@ -35,9 +35,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     businessId: url.searchParams.get("businessId"),
     hasMeetLink: url.searchParams.get("hasMeetLink") as "yes" | "no" | null,
     upcoming: url.searchParams.get("upcoming") as "yes" | "no" | null,
-    createdWithinDays: url.searchParams.get("createdWithinDays")
-      ? Number.parseInt(url.searchParams.get("createdWithinDays") ?? "0", 10)
-      : null,
+    createdWithinDays: readWindowDays(url.searchParams),
   };
 
   try {
