@@ -1,22 +1,28 @@
-FROM node:24-alpine AS development-dependencies-env
-COPY . /app
+FROM node:24-alpine AS base
+RUN npm install -g pnpm@12.3.4
 WORKDIR /app
-RUN npm ci
 
-FROM node:24-alpine AS production-dependencies-env
-COPY ./package.json package-lock.json /app/
-WORKDIR /app
-RUN npm ci --omit=dev
+# Dependency stages copy only the manifests, so nothing else in the build
+# context (secrets included) reaches these layers.
+FROM base AS development-dependencies-env
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml /app/
+RUN pnpm install --frozen-lockfile
 
-FROM node:24-alpine AS build-env
+FROM base AS production-dependencies-env
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml /app/
+RUN pnpm install --prod --frozen-lockfile
+
+FROM base AS build-env
 COPY . /app/
 COPY --from=development-dependencies-env /app/node_modules /app/node_modules
-WORKDIR /app
-RUN npm run build
+RUN pnpm run build
 
+# Configuration (DATABASE_URL, DESK_OPERATOR_TOKENS, ...) is passed at runtime,
+# never baked into the image.
 FROM node:24-alpine
-COPY ./package.json package-lock.json /app/
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json /app/
 COPY --from=production-dependencies-env /app/node_modules /app/node_modules
 COPY --from=build-env /app/build /app/build
-WORKDIR /app
 CMD ["npm", "run", "start"]

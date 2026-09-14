@@ -1,10 +1,10 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { auth } from "~/lib/auth";
+import { getAuth } from "~/lib/auth";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  return auth.handler(request);
+  return getAuth().handler(request);
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  return auth.handler(request);
+  return getAuth().handler(request);
 }

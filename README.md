@@ -44,18 +44,29 @@ Currently only the **Overview** route is implemented. The sidebar includes place
 ```bash
 git clone git@github.com:Digital-Covet/flonion-desk.git
 cd flonion-desk
-npm install
+pnpm install
 ```
 
 ## Configuration
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root for local development. In production, pass these as runtime environment variables; never bake them into an image.
 
 ```env
 DATABASE_URL="postgresql://user:password@localhost:5432/mydb?sslmode=require"
+DESK_OPERATOR_TOKENS="alice=<openssl rand -base64 32>,bob=<openssl rand -base64 32>"
+# Local development only; ignored when NODE_ENV=production.
+OPERATOR_READ_OPEN=1
 ```
 
-The connection string is read by `prisma.config.ts` (CLI) and `app/prisma/db.ts` (runtime). Neon pooled and unpooled URLs both work.
+| Variable | Required | Purpose |
+|---|---|---|
+| `DATABASE_URL` | Yes | Postgres connection string, read by `prisma.config.ts` (CLI) and `app/prisma/db.ts` (runtime). Neon pooled and unpooled URLs both work. |
+| `DESK_OPERATOR_TOKENS` | Yes in production | `id=token` pairs, one per person. Every read and write requires a session unlocked with one of these at `/console/unlock`. The server refuses to start in production when this is empty. Generate tokens with `openssl rand -base64 32`; rotating a token revokes that person's sessions. |
+| `OPERATOR_READ_OPEN` | No | Set to `1` to serve reads without a session in development. Ignored in production. Writes always require a session. |
+| `TENANT_APP_URL`, `OPERATOR_HANDOFF_SECRET` | For impersonation | Where the impersonation handoff redirects, and the HMAC secret shared with the tenant app. |
+| `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `OAUTH_CLIENT_ID_DESK`, `OAUTH_CLIENT_SECRET_DESK` | For `/login` | Operator OAuth. `/api/auth/*` fails until all four are set. Signing in does not yet grant console access; the operator token does. |
+
+After changing a route, run `pnpm check:read-gate`. It builds the app and fails if any console loader serves data without an operator session.
 
 ## Usage
 
