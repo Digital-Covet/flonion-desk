@@ -5,11 +5,13 @@ import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
 import { SearchField } from "../components/ui/FilterSelect";
-import { recordAudit } from "../prisma/audit";
+import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
-import { requireOperator } from "../prisma/operator";
+import { readFailure } from "../prisma/loader-error";
+import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { readPageParams } from "../prisma/paging";
 import { loadReviewList, REVIEW_SORT_KEYS } from "../prisma/reviews";
+import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/reviews";
 import type { ConsoleContext } from "./console";
 
@@ -21,6 +23,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   const url = new URL(request.url);
   const params = readPageParams(url, REVIEW_SORT_KEYS);
 
@@ -48,12 +51,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       error: null,
     };
   } catch (cause) {
-    console.error("reviews loader failed", cause);
-    return {
-      data: null,
-      params,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { data: null, params, error: readFailure("reviews", cause) };
   }
 }
 
@@ -62,8 +60,7 @@ export async function action({ request }: Route.ActionArgs) {
   const body = await request.json();
   const intent = body.intent as string;
   const reviewId = body.reviewId as string;
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const ip = clientIp(request);
 
   const r = await db.orm.public.SharedReview.where((x) => x.id.eq(reviewId))
     .select("id", "text", "rating", "status")
@@ -72,88 +69,74 @@ export async function action({ request }: Route.ActionArgs) {
     return Response.json({ error: "Review not found" }, { status: 404 });
   }
 
-  const now = new Date().toISOString();
+  const now = toStamp(Date.now());
 
   switch (intent) {
     case "hide-review": {
-      await db.orm.public.SharedReview.where((x) => x.id.eq(reviewId)).update({
-        status: "hidden",
-        hiddenById: operator.id,
-        hiddenAt: now,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.SharedReview.where((x) => x.id.eq(reviewId)).update(
+          { status: "hidden", hiddenById: operator.id, hiddenAt: now },
+        );
+        await recordAudit(tx, operator, {
           action: "review.hide",
           entity: "shared_review",
           entityId: reviewId,
           before: { status: r.status },
           after: { status: "hidden" },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "unhide-review": {
-      await db.orm.public.SharedReview.where((x) => x.id.eq(reviewId)).update({
-        status: "visible",
-        hiddenById: null,
-        hiddenAt: null,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.SharedReview.where((x) => x.id.eq(reviewId)).update(
+          { status: "visible", hiddenById: null, hiddenAt: null },
+        );
+        await recordAudit(tx, operator, {
           action: "review.unhide",
           entity: "shared_review",
           entityId: reviewId,
           before: { status: r.status },
           after: { status: "visible" },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "flag-review": {
-      await db.orm.public.SharedReview.where((x) => x.id.eq(reviewId)).update({
-        status: "flagged",
-        hiddenById: operator.id,
-        hiddenAt: now,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.SharedReview.where((x) => x.id.eq(reviewId)).update(
+          { status: "flagged", hiddenById: operator.id, hiddenAt: now },
+        );
+        await recordAudit(tx, operator, {
           action: "review.flag",
           entity: "shared_review",
           entityId: reviewId,
           before: { status: r.status },
           after: { status: "flagged" },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "redact-text": {
-      await db.orm.public.SharedReview.where((x) => x.id.eq(reviewId)).update({
-        text: "[redacted by operator]",
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.SharedReview.where((x) => x.id.eq(reviewId)).update(
+          { text: "[redacted by operator]" },
+        );
+        await recordAudit(tx, operator, {
           action: "review.redact",
           entity: "shared_review",
           entityId: reviewId,
           before: { text: r.text },
           after: { text: "[redacted by operator]" },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
@@ -165,18 +148,18 @@ export async function action({ request }: Route.ActionArgs) {
           { status: 400 },
         );
       }
-      await db.orm.public.SharedReview.where((x) => x.id.eq(reviewId)).delete();
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.SharedReview.where((x) =>
+          x.id.eq(reviewId),
+        ).delete();
+        await recordAudit(tx, operator, {
           action: "review.delete",
           entity: "shared_review",
           entityId: reviewId,
           before: { text: r.text, rating: r.rating },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 

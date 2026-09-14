@@ -11,6 +11,8 @@ import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
 import { loadBusinessList } from "../prisma/businesses";
+import { readFailure } from "../prisma/loader-error";
+import { requireOperatorRead } from "../prisma/operator";
 import { readPageParams } from "../prisma/paging";
 import type { Route } from "./+types/businesses";
 import type { ConsoleContext } from "./console";
@@ -34,6 +36,7 @@ export function meta(_: Route.MetaArgs) {
  * database outage costs the figures, not the whole screen.
  */
 export async function loader({ request }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   const url = new URL(request.url);
   const filters = readBusinessFilters(url);
   const params = readPageParams(url, BUSINESS_SORT_KEYS);
@@ -46,12 +49,11 @@ export async function loader({ request }: Route.LoaderArgs) {
       error: null,
     };
   } catch (cause) {
-    console.error("businesses loader failed", cause);
     return {
       data: null,
       filters,
       params,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
+      error: readFailure("businesses", cause),
     };
   }
 }

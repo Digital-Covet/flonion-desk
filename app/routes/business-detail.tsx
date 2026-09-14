@@ -2,10 +2,12 @@ import { useOutletContext } from "react-router";
 import { BusinessDetail } from "../components/businesses/BusinessDetail";
 import { PageHeader } from "../components/shell/PageHeader";
 import { SectionError } from "../components/shell/SectionError";
-import { recordAudit } from "../prisma/audit";
+import { clientIp, recordAudit } from "../prisma/audit";
 import { loadBusinessDetail } from "../prisma/businesses";
 import { db } from "../prisma/db";
-import { requireOperator } from "../prisma/operator";
+import { readFailure } from "../prisma/loader-error";
+import { requireOperator, requireOperatorRead } from "../prisma/operator";
+import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/business-detail";
 import type { ConsoleContext } from "./console";
 
@@ -16,15 +18,12 @@ export function meta({ loaderData }: Route.MetaArgs) {
   ];
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   try {
     return { business: await loadBusinessDetail(params.id), error: null };
   } catch (cause) {
-    console.error("business detail loader failed", cause);
-    return {
-      business: null,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { business: null, error: readFailure("business detail", cause) };
   }
 }
 
@@ -33,8 +32,7 @@ export async function action({ request }: Route.ActionArgs) {
   const body = await request.json();
   const intent = body.intent as string;
   const businessId = body.businessId as string;
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const ip = clientIp(request);
 
   const b = await db.orm.public.Business.where((x) => x.id.eq(businessId))
     .select(
@@ -84,43 +82,38 @@ export async function action({ request }: Route.ActionArgs) {
           ? body.address.trim() || null
           : b.address;
 
-      await db.orm.public.Business.where((x) => x.id.eq(businessId)).update({
-        name,
-        sector,
-        keywords,
-        description,
-        phone,
-        address,
-        updatedAt: new Date().toISOString(),
-      } as never);
-
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.Business.where((x) => x.id.eq(businessId)).update({
+          name,
+          sector,
+          keywords,
+          description,
+          phone,
+          address,
+          updatedAt: toStamp(Date.now()),
+        });
+        await recordAudit(tx, operator, {
           action: "business.edit",
           entity: "business",
           entityId: businessId,
           before,
           after: { name, sector, keywords, description, phone, address },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
 
       return { ok: true };
     }
 
     case "clear-rating-cache": {
-      await db.orm.public.Business.where((x) => x.id.eq(businessId)).update({
-        rating: null,
-        reviewCount: null,
-        ratingUpdatedAt: null,
-        updatedAt: new Date().toISOString(),
-      } as never);
-
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.Business.where((x) => x.id.eq(businessId)).update({
+          rating: null,
+          reviewCount: null,
+          ratingUpdatedAt: null,
+          updatedAt: toStamp(Date.now()),
+        });
+        await recordAudit(tx, operator, {
           action: "business.clear_rating_cache",
           entity: "business",
           entityId: businessId,
@@ -128,31 +121,27 @@ export async function action({ request }: Route.ActionArgs) {
           after: { rating: null },
           note: "Cleared cached Google rating",
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
 
       return { ok: true };
     }
 
     case "reset-qr-counter": {
-      await db.orm.public.Business.where((x) => x.id.eq(businessId)).update({
-        qrScanCount: 0,
-        updatedAt: new Date().toISOString(),
-      } as never);
-
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.Business.where((x) => x.id.eq(businessId)).update({
+          qrScanCount: 0,
+          updatedAt: toStamp(Date.now()),
+        });
+        await recordAudit(tx, operator, {
           action: "business.reset_qr",
           entity: "business",
           entityId: businessId,
           before: { qrScanCount: b.qrScanCount },
           after: { qrScanCount: 0 },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
 
       return { ok: true };
     }
@@ -163,20 +152,17 @@ export async function action({ request }: Route.ActionArgs) {
         return Response.json({ error: "Name does not match" }, { status: 400 });
       }
 
-      await db.orm.public.Business.where((x) => x.id.eq(businessId)).delete();
-
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.Business.where((x) => x.id.eq(businessId)).delete();
+        await recordAudit(tx, operator, {
           action: "business.delete",
           entity: "business",
           entityId: businessId,
           before,
           note: `Deleted business "${b.name}"`,
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
 
       return { ok: true, redirect: "/businesses" };
     }

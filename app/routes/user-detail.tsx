@@ -1,6 +1,8 @@
 import { useOutletContext } from "react-router";
 import { PageHeader } from "../components/shell/PageHeader";
 import { SectionError } from "../components/shell/SectionError";
+import { readFailure } from "../prisma/loader-error";
+import { requireOperatorRead } from "../prisma/operator";
 import { loadUserDetail } from "../prisma/users";
 import type { Route } from "./+types/user-detail";
 import type { ConsoleContext } from "./console";
@@ -15,7 +17,8 @@ export function meta({ loaderData }: Route.MetaArgs) {
   ];
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   if (!params.id) {
     return { user: null, error: "Missing user id" };
   }
@@ -24,11 +27,7 @@ export async function loader({ params }: Route.LoaderArgs) {
     const user = await loadUserDetail(params.id);
     return { user, error: user === null ? "User not found" : null };
   } catch (cause) {
-    console.error("user detail loader failed", cause);
-    return {
-      user: null,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { user: null, error: readFailure("user detail", cause) };
   }
 }
 

@@ -11,9 +11,12 @@ import type { Route } from "./+types/console";
  * mobile drawer, scroll position) across navigations, and every section
  * inherits the same frame without repeating it.
  *
- * It is also the one place a read is gated. Section loaders do not repeat the
- * check; when real sessions replace the token, this call and `operator.ts` are
- * the only things that change.
+ * This loader gates the shell, but it does NOT protect the sections. React
+ * Router runs matched loaders in parallel, and a single-fetch request such as
+ * `/users.data?_routes=routes/users` runs only the loaders it names, so this
+ * one is skipped entirely. Every section loader must call
+ * `requireOperatorRead` itself, before touching the database;
+ * `scripts/check-read-gate.mjs` fails when one does not.
  */
 export async function loader({ request }: Route.LoaderArgs) {
   const operator = requireOperatorRead(request);

@@ -2,6 +2,8 @@ import { useOutletContext } from "react-router";
 import { PageHeader } from "../components/shell/PageHeader";
 import { SectionError } from "../components/shell/SectionError";
 import { db } from "../prisma/db";
+import { readFailure } from "../prisma/loader-error";
+import { requireOperatorRead } from "../prisma/operator";
 import type { Route } from "./+types/audit";
 import type { ConsoleContext } from "./console";
 
@@ -16,6 +18,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   const url = new URL(request.url);
   const page = Math.max(
     1,
@@ -56,11 +59,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       error: null,
     };
   } catch (cause) {
-    console.error("audit loader failed", cause);
-    return {
-      data: null,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { data: null, error: readFailure("audit", cause) };
   }
 }
 

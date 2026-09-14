@@ -10,7 +10,8 @@
     "lint": "biome lint --write",
     "check": "biome check --write",
     "contract:emit": "prisma contract emit",
-    "check:categories": "node scripts/check-categories.mjs"
+    "check:categories": "node scripts/check-categories.mjs",
+    "check:read-gate": "react-router build && node scripts/check-read-gate.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

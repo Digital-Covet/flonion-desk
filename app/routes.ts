@@ -10,12 +10,19 @@ import {
  * mounted once and survives navigation between sections instead of being
  * rebuilt per page.
  *
+ * The layout does not gate its children's data; each section loader gates
+ * itself (see `console.tsx`). Unlock and impersonate sit outside the layout
+ * because they have no shell to render, and unlock must be reachable before an
+ * operator has a session.
+ *
  * Sections are added here as they are built. A nav row whose section has no
  * route yet stays inert rather than linking to a 404 — see `navLinks.ts`.
  */
 export default [
   route("api/auth/*", "routes/api.auth.$.ts"),
   route("login", "routes/login.tsx"),
+  route("console/unlock", "routes/console.unlock.tsx"),
+  route("impersonate", "routes/impersonate.tsx"),
   layout("routes/console.tsx", [
     index("routes/home.tsx"),
     route("businesses", "routes/businesses.tsx"),
@@ -28,7 +35,5 @@ export default [
     route("ai-usage", "routes/ai-usage.tsx"),
     route("support", "routes/support.tsx"),
     route("audit", "routes/audit.tsx"),
-    route("console/unlock", "routes/console.unlock.tsx"),
-    route("impersonate", "routes/impersonate.tsx"),
   ]),
 ] satisfies RouteConfig;

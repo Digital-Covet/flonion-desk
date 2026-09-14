@@ -6,11 +6,13 @@ import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
 import { FilterSelect } from "../components/ui/FilterSelect";
-import { recordAudit } from "../prisma/audit";
+import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
+import { readFailure } from "../prisma/loader-error";
 import { loadMeetingList, MEETING_SORT_KEYS } from "../prisma/meetings";
-import { requireOperator } from "../prisma/operator";
+import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { readPageParams } from "../prisma/paging";
+import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/meetings";
 import type { ConsoleContext } from "./console";
 
@@ -22,6 +24,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   const url = new URL(request.url);
   const params = readPageParams(url, MEETING_SORT_KEYS);
 
@@ -44,12 +47,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       error: null,
     };
   } catch (cause) {
-    console.error("meetings loader failed", cause);
-    return {
-      data: null,
-      params,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { data: null, params, error: readFailure("meetings", cause) };
   }
 }
 
@@ -58,10 +56,9 @@ export async function action({ request }: Route.ActionArgs) {
   const body = await request.json();
   const intent = body.intent as string;
   const meetingId = body.meetingId as string;
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const ip = clientIp(request);
 
-  const now = new Date().toISOString();
+  const now = toStamp(Date.now());
 
   switch (intent) {
     case "set-meeting-status": {
@@ -83,91 +80,77 @@ export async function action({ request }: Route.ActionArgs) {
         );
       }
 
-      // If cancelling, free the slot in the same transaction
-      if (status === "cancelled" && mr.slotId) {
-        await db.orm.public.AvailabilitySlot.where((s) =>
-          s.id.eq(mr.slotId),
-        ).update({
-          isBooked: false,
-        } as never);
-      }
+      await db.transaction(async (tx) => {
+        // If cancelling, free the slot in the same transaction
+        const slotId = mr.slotId;
+        if (status === "cancelled" && slotId) {
+          await tx.orm.public.AvailabilitySlot.where((s) =>
+            s.id.eq(slotId),
+          ).update({ isBooked: false });
+        }
 
-      await db.orm.public.MeetingRequest.where((x) =>
-        x.id.eq(meetingId),
-      ).update({
-        status,
-        updatedAt: now,
-      } as never);
+        await tx.orm.public.MeetingRequest.where((x) =>
+          x.id.eq(meetingId),
+        ).update({ status, updatedAt: now });
 
-      await recordAudit(
-        operator,
-        {
+        await recordAudit(tx, operator, {
           action: "meeting.set_status",
           entity: "meeting_request",
           entityId: meetingId,
           before: { status: mr.status },
           after: { status },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
 
       return { ok: true };
     }
 
     case "clear-meet-link": {
-      await db.orm.public.MeetingRequest.where((x) =>
-        x.id.eq(meetingId),
-      ).update({
-        meetSpaceId: null,
-        meetUri: null,
-        updatedAt: now,
-      } as never);
+      await db.transaction(async (tx) => {
+        await tx.orm.public.MeetingRequest.where((x) =>
+          x.id.eq(meetingId),
+        ).update({ meetSpaceId: null, meetUri: null, updatedAt: now });
 
-      await recordAudit(
-        operator,
-        {
+        await recordAudit(tx, operator, {
           action: "meeting.clear_meet_link",
           entity: "meeting_request",
           entityId: meetingId,
           note: "Cleared dead Meet link",
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
 
       return { ok: true };
     }
 
     case "delete-meeting": {
-      await db.orm.public.MeetingRequest.where((x) =>
-        x.id.eq(meetingId),
-      ).delete();
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.MeetingRequest.where((x) =>
+          x.id.eq(meetingId),
+        ).delete();
+        await recordAudit(tx, operator, {
           action: "meeting.delete",
           entity: "meeting_request",
           entityId: meetingId,
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "delete-team-meeting": {
-      await db.orm.public.TeamMeeting.where((x) => x.id.eq(meetingId)).delete();
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.TeamMeeting.where((x) =>
+          x.id.eq(meetingId),
+        ).delete();
+        await recordAudit(tx, operator, {
           action: "team_meeting.delete",
           entity: "team_meeting",
           entityId: meetingId,
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 

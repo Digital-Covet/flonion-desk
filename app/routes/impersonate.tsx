@@ -1,8 +1,9 @@
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { redirect } from "react-router";
-import { recordAudit } from "../prisma/audit";
+import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
 import { requireOperator } from "../prisma/operator";
+import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/impersonate";
 
 /**
@@ -54,26 +55,25 @@ export async function action({ request }: Route.ActionArgs) {
     .update(payload)
     .digest("hex");
 
-  // Store the nonce in the Verification table (one-shot store better-auth cleans up)
-  const expiryDate = new Date(expiresAt);
-  await db.orm.public.Verification.create({
-    identifier: `impersonate:${nonce}`,
-    value: operator.id,
-    expiresAt: expiryDate.toISOString(),
-  } as never);
-
-  // Audit desk-side
-  await recordAudit(
-    operator,
-    {
+  // Store the nonce in the Verification table (one-shot store better-auth
+  // cleans up) and audit desk-side, together: no handoff without its audit row.
+  // The contract gives `id` and `updatedAt` no defaults, so both are set here.
+  await db.transaction(async (tx) => {
+    await tx.orm.public.Verification.create({
+      id: randomUUID(),
+      identifier: `impersonate:${nonce}`,
+      value: operator.id,
+      expiresAt: toStamp(expiresAt),
+      updatedAt: toStamp(Date.now()),
+    });
+    await recordAudit(tx, operator, {
       action: "user.impersonate",
       entity: "user",
       entityId: userId,
       note: `Impersonating ${user.email}`,
-      ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
-    },
-    db.orm.public as never,
-  );
+      ip: clientIp(request),
+    });
+  });
 
   // Redirect to tenant app with the handoff token
   const handoffUrl = new URL("/operator/impersonate", tenantUrl);

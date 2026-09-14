@@ -2,7 +2,9 @@ import { useOutletContext } from "react-router";
 import { PageHeader } from "../components/shell/PageHeader";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
+import { readFailure } from "../prisma/loader-error";
 import { loadMarketplace } from "../prisma/marketplace";
+import { requireOperatorRead } from "../prisma/operator";
 import type { Route } from "./+types/marketplace";
 import type { ConsoleContext } from "./console";
 
@@ -16,15 +18,12 @@ export function meta(_: Route.MetaArgs) {
   ];
 }
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   try {
     return { data: await loadMarketplace(), error: null };
   } catch (cause) {
-    console.error("marketplace loader failed", cause);
-    return {
-      data: null,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { data: null, error: readFailure("marketplace", cause) };
   }
 }
 

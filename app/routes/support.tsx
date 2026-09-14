@@ -5,11 +5,13 @@ import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
 import { FilterSelect, SearchField } from "../components/ui/FilterSelect";
-import { recordAudit } from "../prisma/audit";
+import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
-import { requireOperator } from "../prisma/operator";
+import { readFailure } from "../prisma/loader-error";
+import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { readPageParams } from "../prisma/paging";
 import { loadSupportList, SUPPORT_SORT_KEYS } from "../prisma/support";
+import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/support";
 import type { ConsoleContext } from "./console";
 
@@ -21,6 +23,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   const url = new URL(request.url);
   const params = readPageParams(url, SUPPORT_SORT_KEYS);
 
@@ -48,12 +51,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       error: null,
     };
   } catch (cause) {
-    console.error("support loader failed", cause);
-    return {
-      data: null,
-      params,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { data: null, params, error: readFailure("support", cause) };
   }
 }
 
@@ -62,8 +60,7 @@ export async function action({ request }: Route.ActionArgs) {
   const body = await request.json();
   const intent = body.intent as string;
   const feedbackId = body.feedbackId as string;
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const ip = clientIp(request);
 
   const fb = await db.orm.public.Feedback.where((x) => x.id.eq(feedbackId))
     .select("id", "status", "assignedTo")
@@ -72,7 +69,8 @@ export async function action({ request }: Route.ActionArgs) {
     return Response.json({ error: "Feedback not found" }, { status: 404 });
   }
 
-  const now = new Date().toISOString();
+  // Feedback has no `updatedAt` column; `resolvedAt` is its only write stamp.
+  const now = toStamp(Date.now());
 
   switch (intent) {
     case "set-status": {
@@ -81,24 +79,19 @@ export async function action({ request }: Route.ActionArgs) {
       if (!validStatuses.includes(status)) {
         return Response.json({ error: "Invalid status" }, { status: 400 });
       }
-      const update: Record<string, unknown> = { status, updatedAt: now };
-      if (status === "resolved") update.resolvedAt = now;
-
-      await db.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).update(
-        update as never,
-      );
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).update(
+          status === "resolved" ? { status, resolvedAt: now } : { status },
+        );
+        await recordAudit(tx, operator, {
           action: "feedback.set_status",
           entity: "feedback",
           entityId: feedbackId,
           before: { status: fb.status },
           after: { status },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
@@ -107,58 +100,50 @@ export async function action({ request }: Route.ActionArgs) {
         typeof body.assignedTo === "string"
           ? body.assignedTo.trim() || null
           : null;
-      await db.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).update({
-        assignedTo,
-        status: fb.status === "new" ? "open" : fb.status,
-        updatedAt: now,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).update({
+          assignedTo,
+          status: fb.status === "new" ? "open" : fb.status,
+        });
+        await recordAudit(tx, operator, {
           action: "feedback.assign",
           entity: "feedback",
           entityId: feedbackId,
           before: { assignedTo: fb.assignedTo },
           after: { assignedTo },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "add-note": {
       const note =
         typeof body.operatorNote === "string" ? body.operatorNote.trim() : "";
-      await db.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).update({
-        operatorNote: note || null,
-        updatedAt: now,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).update({
+          operatorNote: note || null,
+        });
+        await recordAudit(tx, operator, {
           action: "feedback.add_note",
           entity: "feedback",
           entityId: feedbackId,
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "delete-feedback": {
-      await db.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).delete();
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).delete();
+        await recordAudit(tx, operator, {
           action: "feedback.delete",
           entity: "feedback",
           entityId: feedbackId,
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 

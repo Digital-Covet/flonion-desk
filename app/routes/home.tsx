@@ -1,5 +1,7 @@
 import { useOutletContext } from "react-router";
 import Dashboard from "../components/Dashboard";
+import { readFailure } from "../prisma/loader-error";
+import { requireOperatorRead } from "../prisma/operator";
 import { loadOverview } from "../prisma/overview";
 import type { Route } from "./+types/home";
 import type { ConsoleContext } from "./console";
@@ -20,15 +22,12 @@ export function meta(_: Route.MetaArgs) {
  * panel rather than thrown, so a database outage costs the operator the
  * figures, not the whole screen.
  */
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   try {
     return { data: await loadOverview(), error: null };
   } catch (cause) {
-    console.error("overview loader failed", cause);
-    return {
-      data: null,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { data: null, error: readFailure("overview", cause) };
   }
 }
 

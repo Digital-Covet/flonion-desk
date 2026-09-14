@@ -5,10 +5,12 @@ import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
 import { SearchField } from "../components/ui/FilterSelect";
-import { recordAudit } from "../prisma/audit";
+import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
-import { requireOperator } from "../prisma/operator";
+import { readFailure } from "../prisma/loader-error";
+import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { readPageParams } from "../prisma/paging";
+import { toStamp } from "../prisma/time";
 import { loadUserList, USER_SORT_KEYS } from "../prisma/users";
 import type { Route } from "./+types/users";
 import type { ConsoleContext } from "./console";
@@ -21,6 +23,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   const url = new URL(request.url);
   const params = readPageParams(url, USER_SORT_KEYS);
 
@@ -44,12 +47,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       error: null,
     };
   } catch (cause) {
-    console.error("users loader failed", cause);
-    return {
-      data: null,
-      params,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { data: null, params, error: readFailure("users", cause) };
   }
 }
 
@@ -58,8 +56,7 @@ export async function action({ request }: Route.ActionArgs) {
   const body = await request.json();
   const intent = body.intent as string;
   const userId = body.userId as string;
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const ip = clientIp(request);
 
   const u = await db.orm.public.User.where((x) => x.id.eq(userId))
     .select(
@@ -76,7 +73,7 @@ export async function action({ request }: Route.ActionArgs) {
     return Response.json({ error: "User not found" }, { status: 404 });
   }
 
-  const now = new Date().toISOString();
+  const now = toStamp(Date.now());
 
   switch (intent) {
     case "set-role": {
@@ -92,63 +89,57 @@ export async function action({ request }: Route.ActionArgs) {
       if (!validRoles.includes(role)) {
         return Response.json({ error: "Invalid role" }, { status: 400 });
       }
-      await db.orm.public.User.where((x) => x.id.eq(userId)).update({
-        role,
-        updatedAt: now,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.User.where((x) => x.id.eq(userId)).update({
+          role,
+          updatedAt: now,
+        });
+        await recordAudit(tx, operator, {
           action: "user.set_role",
           entity: "user",
           entityId: userId,
           before: { role: u.role },
           after: { role },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "toggle-onboarding": {
       const onboarded = !u.onboardingCompleted;
-      await db.orm.public.User.where((x) => x.id.eq(userId)).update({
-        onboardingCompleted: onboarded,
-        updatedAt: now,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.User.where((x) => x.id.eq(userId)).update({
+          onboardingCompleted: onboarded,
+          updatedAt: now,
+        });
+        await recordAudit(tx, operator, {
           action: "user.toggle_onboarding",
           entity: "user",
           entityId: userId,
           before: { onboardingCompleted: u.onboardingCompleted },
           after: { onboardingCompleted: onboarded },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "force-email-verified": {
-      await db.orm.public.User.where((x) => x.id.eq(userId)).update({
-        emailVerified: true,
-        updatedAt: now,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.User.where((x) => x.id.eq(userId)).update({
+          emailVerified: true,
+          updatedAt: now,
+        });
+        await recordAudit(tx, operator, {
           action: "user.force_email_verified",
           entity: "user",
           entityId: userId,
           before: { emailVerified: u.emailVerified },
           after: { emailVerified: true },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
@@ -157,61 +148,55 @@ export async function action({ request }: Route.ActionArgs) {
         typeof body.banReason === "string"
           ? body.banReason.trim() || null
           : null;
-      await db.orm.public.User.where((x) => x.id.eq(userId)).update({
-        banned: true,
-        banReason,
-        updatedAt: now,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.User.where((x) => x.id.eq(userId)).update({
+          banned: true,
+          banReason,
+          updatedAt: now,
+        });
+        await recordAudit(tx, operator, {
           action: "user.ban",
           entity: "user",
           entityId: userId,
           before: { banned: u.banned },
           after: { banned: true, banReason },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "unban-user": {
-      await db.orm.public.User.where((x) => x.id.eq(userId)).update({
-        banned: false,
-        banReason: null,
-        banExpires: null,
-        updatedAt: now,
-      } as never);
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.User.where((x) => x.id.eq(userId)).update({
+          banned: false,
+          banReason: null,
+          banExpires: null,
+          updatedAt: now,
+        });
+        await recordAudit(tx, operator, {
           action: "user.unban",
           entity: "user",
           entityId: userId,
           before: { banned: u.banned },
           after: { banned: false },
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
     case "revoke-all-sessions": {
-      await db.orm.public.Session.where((s) => s.userId.eq(userId)).delete();
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.Session.where((s) => s.userId.eq(userId)).delete();
+        await recordAudit(tx, operator, {
           action: "user.revoke_sessions",
           entity: "user",
           entityId: userId,
           note: "Revoked all sessions",
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true };
     }
 
@@ -223,19 +208,17 @@ export async function action({ request }: Route.ActionArgs) {
           { status: 400 },
         );
       }
-      await db.orm.public.User.where((x) => x.id.eq(userId)).delete();
-      await recordAudit(
-        operator,
-        {
+      await db.transaction(async (tx) => {
+        await tx.orm.public.User.where((x) => x.id.eq(userId)).delete();
+        await recordAudit(tx, operator, {
           action: "user.delete",
           entity: "user",
           entityId: userId,
           before: { name: u.name, email: u.email },
           note: `Deleted user "${u.name}"`,
           ip,
-        },
-        db.orm.public as never,
-      );
+        });
+      });
       return { ok: true, redirect: "/users" };
     }
 

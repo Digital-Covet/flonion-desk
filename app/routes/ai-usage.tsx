@@ -6,6 +6,8 @@ import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
 import { SearchField } from "../components/ui/FilterSelect";
 import { AI_USAGE_SORT_KEYS, loadAiUsageList } from "../prisma/ai-usage";
+import { readFailure } from "../prisma/loader-error";
+import { requireOperatorRead } from "../prisma/operator";
 import { readPageParams } from "../prisma/paging";
 import type { Route } from "./+types/ai-usage";
 import type { ConsoleContext } from "./console";
@@ -18,6 +20,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
+  requireOperatorRead(request);
   const url = new URL(request.url);
   const params = readPageParams(url, AI_USAGE_SORT_KEYS);
 
@@ -40,12 +43,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       error: null,
     };
   } catch (cause) {
-    console.error("ai-usage loader failed", cause);
-    return {
-      data: null,
-      params,
-      error: cause instanceof Error ? cause.message : "Unknown database error",
-    };
+    return { data: null, params, error: readFailure("ai-usage", cause) };
   }
 }
 
