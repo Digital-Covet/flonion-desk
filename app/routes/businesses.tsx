@@ -36,7 +36,7 @@ export function meta(_: Route.MetaArgs) {
  * database outage costs the figures, not the whole screen.
  */
 export async function loader({ request }: Route.LoaderArgs) {
-  requireOperatorRead(request);
+  await requireOperatorRead(request);
   const url = new URL(request.url);
   const filters = readBusinessFilters(url);
   const params = readPageParams(url, BUSINESS_SORT_KEYS);

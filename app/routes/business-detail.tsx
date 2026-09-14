@@ -19,7 +19,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  requireOperatorRead(request);
+  await requireOperatorRead(request);
   try {
     return { business: await loadBusinessDetail(params.id), error: null };
   } catch (cause) {
@@ -28,7 +28,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const operator = requireOperator(request);
+  const operator = await requireOperator(request);
   const body = await request.json();
   const intent = body.intent as string;
   const businessId = body.businessId as string;

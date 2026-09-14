@@ -18,7 +18,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  requireOperatorRead(request);
+  await requireOperatorRead(request);
   if (!params.id) {
     return { user: null, error: "Missing user id" };
   }

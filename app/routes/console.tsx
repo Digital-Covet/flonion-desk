@@ -1,6 +1,6 @@
-import { Outlet } from "react-router";
+import { Outlet, redirect } from "react-router";
 import Sidebar from "../components/Sidebar";
-import { requireOperatorRead } from "../prisma/operator";
+import { currentOperator } from "../prisma/operator";
 import type { Route } from "./+types/console";
 
 /**
@@ -19,7 +19,11 @@ import type { Route } from "./+types/console";
  * `scripts/check-read-gate.mjs` fails when one does not.
  */
 export async function loader({ request }: Route.LoaderArgs) {
-  const operator = requireOperatorRead(request);
+  const operator = await currentOperator(request);
+  if (!operator) {
+    const url = new URL(request.url);
+    return redirect(`/login?returnTo=${encodeURIComponent(url.pathname)}`);
+  }
   return { operator: operator?.label ?? null };
 }
 

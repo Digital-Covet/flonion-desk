@@ -19,7 +19,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  requireOperatorRead(request);
+  await requireOperatorRead(request);
   try {
     return { data: await loadMarketplace(), error: null };
   } catch (cause) {

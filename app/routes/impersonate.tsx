@@ -20,7 +20,7 @@ import type { Route } from "./+types/impersonate";
  * - One audit row desk-side
  */
 export async function action({ request }: Route.ActionArgs) {
-  const operator = requireOperator(request);
+  const operator = await requireOperator(request);
 
   const body = await request.json();
   const userId = body.userId;

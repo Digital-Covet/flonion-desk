@@ -23,7 +23,7 @@ export function meta(_: Route.MetaArgs) {
  * figures, not the whole screen.
  */
 export async function loader({ request }: Route.LoaderArgs) {
-  requireOperatorRead(request);
+  await requireOperatorRead(request);
   try {
     return { data: await loadOverview(), error: null };
   } catch (cause) {

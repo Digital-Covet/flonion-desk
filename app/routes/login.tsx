@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router";
 import { authClient } from "~/lib/auth-client";
 import type { Route } from "./+types/login";
 
@@ -6,10 +7,13 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export default function Login() {
+  const [params] = useSearchParams();
+  const returnTo = params.get("returnTo") || "/";
+
   const handleSignIn = async () => {
     await authClient.signIn.social({
       provider: "desk",
-      callbackURL: "/",
+      callbackURL: returnTo,
     });
   };
 

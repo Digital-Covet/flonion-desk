@@ -4,11 +4,9 @@ import { genericOAuth } from "better-auth/plugins";
 /**
  * better-auth for the operator sign-in flow.
  *
- * This is NOT an authorization gate. Nothing resolves a session into an
- * operator; every read and write is still gated by `prisma/operator.ts`.
- * Before wiring `getSession` into that gate, give this a database adapter and
- * map sessions to an explicit allowlist of operator subjects, or any account
- * the IAM issues becomes an operator.
+ * Authentication is delegated to the Digital Covet IAM via OAuth (provider:
+ * "desk"). After a successful callback, better-auth creates a session cookie
+ * that `prisma/operator.ts` reads to resolve the current operator.
  *
  * The instance is built on first use and refuses to build with any setting
  * missing, so a misconfigured deployment fails loudly on `/api/auth/*` instead

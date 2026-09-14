@@ -24,7 +24,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  requireOperatorRead(request);
+  await requireOperatorRead(request);
   const url = new URL(request.url);
   const params = readPageParams(url, MEETING_SORT_KEYS);
 
@@ -52,7 +52,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const operator = requireOperator(request);
+  const operator = await requireOperator(request);
   const body = await request.json();
   const intent = body.intent as string;
   const meetingId = body.meetingId as string;

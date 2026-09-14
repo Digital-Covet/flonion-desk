@@ -18,7 +18,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  requireOperatorRead(request);
+  await requireOperatorRead(request);
   const url = new URL(request.url);
   const page = Math.max(
     1,

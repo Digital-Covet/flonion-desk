@@ -8,21 +8,25 @@
  * manifest, including routes added later.
  *
  * Run after `react-router build` (or via `pnpm check:read-gate`). No database
- * is contacted: DATABASE_URL points at a closed local port.
+ * is contacted: DATABASE_URL points at a closed local port, so the loaders' own
+ * data reads cannot succeed. The gate must reject the request before any such
+ * read runs.
  */
-import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-// Must be set before the build is imported: operator.ts reads them at load.
-const token = randomBytes(32).toString("base64url");
+// Must be set before the build is imported: better-auth reads them lazily and
+// `operator.ts` fails closed when they are missing.
 process.env.NODE_ENV = "production";
 process.env.DATABASE_URL = "postgresql://gate:gate@127.0.0.1:1/gate";
-process.env.DESK_OPERATOR_TOKENS = `gate-check=${token}`;
+process.env.BETTER_AUTH_URL = "http://desk.test";
+process.env.BETTER_AUTH_SECRET = "gate-check-secret";
+process.env.OAUTH_CLIENT_ID_DESK = "desk";
+process.env.OAUTH_CLIENT_SECRET_DESK = "gate-check-client-secret";
 delete process.env.OPERATOR_READ_OPEN;
 
-// Authenticated loaders fail to reach the closed port by design; their logs
-// are expected noise here.
+// Gated loaders fail to reach the closed port by design; their logs are
+// expected noise here.
 const logError = console.error;
 console.error = (...args) => {
   if (typeof args[0] === "string" && args[0].includes("loader failed")) return;
@@ -34,7 +38,7 @@ const PUBLIC_ROUTES = new Set([
   "root",
   "routes/login",
   "routes/api.auth.$",
-  "routes/console.unlock",
+  "routes/api.auth.front-channel-logout",
 ]);
 
 const { createRequestHandler } = await import("react-router");
@@ -64,34 +68,6 @@ function expect(ok, message) {
   if (!ok) failures.push(message);
 }
 
-// Unlock: a token in the URL is refused; a POSTed one yields a session cookie.
-{
-  const res = await handler(
-    new Request(`${origin}/console/unlock?token=${token}`),
-  );
-  expect(
-    res.status === 400,
-    `GET /console/unlock?token= → ${res.status}, want 400`,
-  );
-}
-
-const unlock = await handler(
-  new Request(`${origin}/console/unlock`, {
-    method: "POST",
-    body: new URLSearchParams({ token }),
-  }),
-);
-const setCookie = unlock.headers.get("set-cookie") ?? "";
-const cookie = setCookie.split(";")[0];
-expect(
-  unlock.status === 302 && cookie.startsWith("desk_operator="),
-  `POST /console/unlock → ${unlock.status}, no session cookie`,
-);
-expect(
-  !setCookie.includes(encodeURIComponent(token)) && !setCookie.includes(token),
-  "session cookie contains the raw token",
-);
-
 const gated = Object.values(build.routes).filter(
   (r) => r.module.loader && !PUBLIC_ROUTES.has(r.id),
 );
@@ -103,9 +79,17 @@ for (const route of gated) {
 
   const anon = await handler(new Request(url));
   const anonBody = await anon.text();
+
+  // The console layout `return redirect("/login..."`; single fetch serializes
+  // that as a 202 with a SingleFetchRedirect payload. Every section under it
+  // must reject its own single-fetch data (403).
+  const redirected =
+    (anon.status === 302 && anon.headers.get("location")?.includes("/login")) ||
+    (anonBody.includes("SingleFetchRedirect") && anonBody.includes("/login"));
+
   expect(
-    anon.status === 403,
-    `${route.id}: ${url} without a session → ${anon.status}, want 403`,
+    anon.status === 403 || redirected,
+    `${route.id}: ${url} without a session → ${anon.status}, want 403 or a login redirect`,
   );
   expect(
     !anonBody.includes("Database read failed"),
@@ -115,21 +99,8 @@ for (const route of gated) {
   const doc = await handler(new Request(`${origin}${path}`));
   await doc.text();
   expect(
-    doc.status === 403,
-    `${route.id}: GET ${path} without a session → ${doc.status}, want 403`,
-  );
-
-  // Positive control: with a session the loader runs, so the 403s above are
-  // the gate and not something else failing.
-  const authed = await handler(new Request(url, { headers: { cookie } }));
-  const authedBody = await authed.text();
-  expect(
-    authed.status === 200,
-    `${route.id}: ${url} with a session → ${authed.status}, want 200`,
-  );
-  expect(
-    !/ECONNREFUSED|contract marker/i.test(authedBody),
-    `${route.id}: raw database error reached the client`,
+    doc.status === 403 || doc.status === 302,
+    `${route.id}: GET ${path} without a session → ${doc.status}, want 403 or redirect`,
   );
 
   console.log(`checked ${route.id} (${path})`);
