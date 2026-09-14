@@ -93,7 +93,6 @@ export async function loadAiUsageList(
     promptSum,
     completionSum,
     rejections,
-    latencies,
   ] = await Promise.all([
     c
       .select(
@@ -131,21 +130,22 @@ export async function loadAiUsageList(
     all
       .where((u) => u.errorKind.eq("rate_limit"))
       .aggregate((a) => ({ n: a.count() })),
-    c.select("latencyMs").all(),
   ]);
 
-  // Compute p50 and p95 latency in JS (low cardinality, acceptable)
-  const sortedLatencies = latencies
-    .map((r) => r.latencyMs)
-    .sort((a, b) => a - b);
-  const p50 =
-    sortedLatencies.length > 0
-      ? sortedLatencies[Math.floor(sortedLatencies.length * 0.5)]
-      : 0;
-  const p95 =
-    sortedLatencies.length > 0
-      ? sortedLatencies[Math.floor(sortedLatencies.length * 0.95)]
-      : 0;
+  // The ledger grows with every AI call, so percentiles are read from the
+  // database one row each (the row at that rank by latency) instead of pulling
+  // every matching latency into memory to sort.
+  const latencyAt = async (fraction: number) => {
+    if (matching.n === 0) return 0;
+    const [row] = await c
+      .select("latencyMs")
+      .orderBy((u) => u.latencyMs.asc())
+      .offset(Math.floor(matching.n * fraction))
+      .limit(1)
+      .all();
+    return row?.latencyMs ?? 0;
+  };
+  const [p50, p95] = await Promise.all([latencyAt(0.5), latencyAt(0.95)]);
 
   const listRows: AiUsageRow[] = rows.map((r) => ({
     id: r.id,

@@ -72,6 +72,9 @@ export interface MeetingData {
   };
 }
 
+/** Team meetings are not paged, so the tab shows the most recent this many. */
+export const TEAM_MEETING_LIMIT = 100;
+
 export async function loadMeetingList(
   filters: MeetingFilters,
   params: PageParams<MeetingSort>,
@@ -116,7 +119,8 @@ export async function loadMeetingList(
         "meetUri",
       )
         .include("business", (b) => b.select("name"))
-        .orderBy([(tm) => tm.date.desc()])
+        .orderBy([(tm) => tm.date.desc(), (tm) => tm.id.asc()])
+        .limit(TEAM_MEETING_LIMIT)
         .all(),
     ]);
 

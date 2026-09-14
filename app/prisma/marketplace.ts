@@ -62,11 +62,17 @@ export interface MarketplaceData {
 }
 
 const NEW_ARRIVAL_DAYS = 30;
+const PARTNER_READINESS_LIMIT = 20;
+const FAVOURITES_LIMIT = 10;
 
 export async function loadMarketplace(): Promise<MarketplaceData> {
   const all = db.orm.public.Business;
 
-  const [businesses, favourites, orphaned, newArrivals] = await Promise.all([
+  // Categories are matched in JS, so the plain business columns are read in
+  // full. The per-business relation counts are not: they are only needed for
+  // the rows actually returned, and are fetched for those below. Favourites are
+  // counted in the database rather than one row per favourite.
+  const [businesses, favouriteGroups, newArrivals] = await Promise.all([
     all
       .select(
         "id",
@@ -76,21 +82,12 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
         "sector",
         "keywords",
         "description",
-        "createdAt",
       )
-      .include("services", (s) => s.count())
-      .include("projects", (p) => p.count())
-      .include("businessContacts", (c) => c.count())
-      .include("availabilitySlots", (s) => s.count())
       .all(),
 
-    db.orm.public.FavoritePartner.select("businessId")
-      .include("business", (b) => b.select("id", "name", "logo"))
-      .all(),
-
-    // Orphaned favourites: favourites whose business no longer exists.
-    // We count them by checking favourites with no matching business.
-    db.orm.public.FavoritePartner.aggregate((a) => ({ n: a.count() })),
+    db.orm.public.FavoritePartner.groupBy("businessId").aggregate((a) => ({
+      n: a.count(),
+    })),
 
     all
       .where((b) => b.createdAt.gte(daysAgo(NEW_ARRIVAL_DAYS)))
@@ -109,6 +106,8 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
       .all(),
   ]);
 
+  const byId = new Map(businesses.map((b) => [b.id, b]));
+
   // Category distribution
   const catMap = new Map<string, number>();
   for (const b of businesses) {
@@ -120,65 +119,86 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
     .map(([category, count]) => ({ category, count }))
     .sort((a, b) => b.count - a.count);
 
-  // Favourites leaderboard
-  const favMap = new Map<
-    string,
-    { name: string; logo: string | null; count: number }
-  >();
-  for (const f of favourites) {
-    const b = f.business;
-    if (!b) continue;
-    const existing = favMap.get(b.id);
-    if (existing) {
-      existing.count++;
-    } else {
-      favMap.set(b.id, { name: b.name, logo: b.logo, count: 1 });
+  // Favourites leaderboard. A favourite whose business is not in the list is
+  // orphaned.
+  const favouriteRows: FavouriteRow[] = [];
+  let orphanedFavourites = 0;
+  for (const group of favouriteGroups) {
+    const b = byId.get(group.businessId);
+    if (!b) {
+      orphanedFavourites += group.n;
+      continue;
     }
-  }
-  const favouritesLeaderboard: FavouriteRow[] = [...favMap.entries()]
-    .map(([id, data]) => ({
-      id,
-      name: data.name,
-      logo: data.logo,
-      favouriteCount: data.count,
-    }))
-    .sort((a, b) => b.favouriteCount - a.favouriteCount)
-    .slice(0, 10);
-
-  // Partner readiness
-  const partnerReadiness: PartnerReadinessRow[] = businesses.map((b) => {
-    const fieldsPresent = [
-      b.username,
-      b.logo,
-      b.sector,
-      b.keywords,
-      b.description,
-    ].filter(Boolean).length;
-    const completeness = Math.round((fieldsPresent / 5) * 100);
-
-    return {
+    favouriteRows.push({
       id: b.id,
       name: b.name,
-      username: b.username,
       logo: b.logo,
-      sector: b.sector,
-      keywords: b.keywords,
-      serviceCount: b.services,
-      projectCount: b.projects,
-      contactCount: b.businessContacts,
-      slotCount: b.availabilitySlots,
-      completeness,
-    };
-  });
-  partnerReadiness.sort((a, b) => b.completeness - a.completeness);
+      favouriteCount: group.n,
+    });
+  }
+  const favouritesLeaderboard = favouriteRows
+    .sort((a, b) => b.favouriteCount - a.favouriteCount)
+    .slice(0, FAVOURITES_LIMIT);
+
+  // Partner readiness: score every business, then count relations for the top
+  // rows only.
+  const scored = businesses
+    .map((b) => {
+      const fieldsPresent = [
+        b.username,
+        b.logo,
+        b.sector,
+        b.keywords,
+        b.description,
+      ].filter(Boolean).length;
+      return {
+        business: b,
+        completeness: Math.round((fieldsPresent / 5) * 100),
+      };
+    })
+    .sort((a, b) => b.completeness - a.completeness);
+
+  const topIds = scored
+    .slice(0, PARTNER_READINESS_LIMIT)
+    .map((s) => s.business.id);
+  const counts =
+    topIds.length === 0
+      ? []
+      : await all
+          .where((b) => b.id.in(topIds))
+          .select("id")
+          .include("services", (s) => s.count())
+          .include("projects", (p) => p.count())
+          .include("businessContacts", (c) => c.count())
+          .include("availabilitySlots", (s) => s.count())
+          .all();
+  const countsById = new Map(counts.map((c) => [c.id, c]));
+
+  const partnerReadiness: PartnerReadinessRow[] = scored
+    .slice(0, PARTNER_READINESS_LIMIT)
+    .map(({ business: b, completeness }) => {
+      const c = countsById.get(b.id);
+      return {
+        id: b.id,
+        name: b.name,
+        username: b.username,
+        logo: b.logo,
+        sector: b.sector,
+        keywords: b.keywords,
+        serviceCount: c?.services ?? 0,
+        projectCount: c?.projects ?? 0,
+        contactCount: c?.businessContacts ?? 0,
+        slotCount: c?.availabilitySlots ?? 0,
+        completeness,
+      };
+    });
 
   // Stats
   const withUsername = businesses.filter((b) => b.username).length;
   const avgCompleteness =
-    partnerReadiness.length > 0
+    scored.length > 0
       ? Math.round(
-          partnerReadiness.reduce((sum, r) => sum + r.completeness, 0) /
-            partnerReadiness.length,
+          scored.reduce((sum, s) => sum + s.completeness, 0) / scored.length,
         )
       : 0;
 
@@ -196,9 +216,9 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
 
   return {
     categoryDistribution,
-    partnerReadiness: partnerReadiness.slice(0, 20),
+    partnerReadiness,
     favourites: favouritesLeaderboard,
-    orphanedFavourites: Math.max(0, orphaned.n - favourites.length),
+    orphanedFavourites,
     newArrivals: newArrivalRows,
     stats: {
       totalBusinesses: businesses.length,

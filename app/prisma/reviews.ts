@@ -121,7 +121,11 @@ export async function loadReviewList(
       c.aggregate((a) => ({ n: a.count() })),
       all.aggregate((a) => ({ n: a.count() })),
       all.aggregate((a) => ({ n: a.sum("rating") })),
-      c.include("reviewAnalytics", (a) => a.select("aiCopyCount")).all(),
+      // Summed in the database, platform-wide like the other two stats, rather
+      // than fetching one analytics row per matching review.
+      db.orm.public.ReviewAnalytics.aggregate((a) => ({
+        n: a.sum("aiCopyCount"),
+      })),
       all.groupBy("rating").aggregate((a) => ({ n: a.count() })),
     ]);
 
@@ -147,18 +151,13 @@ export async function loadReviewList(
     dist[g.rating] = g.n;
   }
 
-  const totalAiCopies = aiCopies.reduce(
-    (sum, r) => sum + (r.reviewAnalytics?.aiCopyCount ?? 0),
-    0,
-  );
-
   return {
     page: pageResult(listRows, matching.n, params),
     stats: {
       total: totalAgg.n,
       avgRating:
         totalAgg.n > 0 ? Math.round((ratingSum.n ?? 0) / totalAgg.n) : 0,
-      totalAiCopies,
+      totalAiCopies: aiCopies.n ?? 0,
       ratingDistribution: dist,
     },
   };
