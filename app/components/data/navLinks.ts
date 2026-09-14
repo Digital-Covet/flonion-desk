@@ -2,8 +2,8 @@ import {
   Building2,
   CalendarClock,
   LayoutGrid,
-  LifeBuoy,
   LogOut,
+  MessageSquare,
   Sparkles,
   Star,
   Store,
@@ -29,15 +29,25 @@ export const mainNavLinks: NavLink[] = [
     to: "/businesses",
     nested: true,
   },
-  { id: "users", label: "Users", icon: Users },
-  { id: "reviews", label: "Reviews", icon: Star },
-  { id: "ai-usage", label: "AI Usage", icon: Sparkles },
-  { id: "marketplace", label: "Marketplace", icon: Store },
-  { id: "meetings", label: "Meetings", icon: CalendarClock },
+  { id: "users", label: "Users", icon: Users, to: "/users", nested: true },
+  { id: "reviews", label: "Reviews", icon: Star, to: "/reviews" },
+  { id: "ai-usage", label: "AI Usage", icon: Sparkles, to: "/ai-usage" },
+  {
+    id: "marketplace",
+    label: "Marketplace",
+    icon: Store,
+    to: "/marketplace",
+  },
+  { id: "meetings", label: "Meetings", icon: CalendarClock, to: "/meetings" },
 ];
 
 export const accountNavLinks: NavLink[] = [
-  { id: "support", label: "Support Inbox", icon: LifeBuoy },
+  {
+    id: "support",
+    label: "Support Inbox",
+    icon: MessageSquare,
+    to: "/support",
+  },
   { id: "team", label: "Team", icon: UsersRound },
   { id: "sign-out", label: "Sign Out", icon: LogOut },
 ];

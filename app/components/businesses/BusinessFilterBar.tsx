@@ -1,15 +1,9 @@
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Form, Link } from "react-router";
-import {
-  CARD,
-  COLORS,
-  FONT_BOLD,
-  FONT_REGULAR,
-  OUTLINE_STROKE_WIDTH,
-  TEXT_LABEL,
-} from "../constants";
+import { CARD, COLORS, FONT_BOLD } from "../constants";
 import type { BusinessFilters } from "../data/businessFilters";
 import type { SectorFacet } from "../types";
+import { FilterSelect, SearchField } from "../ui/FilterSelect";
 
 /**
  * Filters for the Businesses table.
@@ -18,9 +12,6 @@ import type { SectorFacet } from "../types";
  * reads them back. That is what makes a filtered view shareable and the back
  * button behave. It also means no client state to keep in sync with the query
  * that produced the rows.
- *
- * Submitting resets to page one: the old offset describes a result set that no
- * longer exists.
  */
 export function BusinessFilterBar({
   filters,
@@ -31,107 +22,72 @@ export function BusinessFilterBar({
   sectors: SectorFacet[];
   active: boolean;
 }) {
-  const field = `${FONT_REGULAR} text-[13px] text-[#2D3748] bg-white rounded-[10px] px-3 py-2 border outline-none`;
-  const borderStyle = { borderColor: COLORS.border };
-
   return (
     <Form method="get" className={`${CARD} p-4 mb-4`}>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 flex-1 min-w-[220px]">
-          <span className={`${TEXT_LABEL} uppercase`}>Search</span>
-          <span
-            className="flex items-center gap-2 bg-white rounded-[10px] px-3 py-2 border"
-            style={borderStyle}
-          >
-            <Search
-              size={15}
-              color={COLORS.textMuted}
-              strokeWidth={OUTLINE_STROKE_WIDTH}
-            />
-            <input
-              type="search"
-              name="q"
-              defaultValue={filters.q ?? ""}
-              placeholder="Name, description, keywords or address"
-              className={`${FONT_REGULAR} text-[13px] text-[#2D3748] bg-transparent outline-none w-full placeholder:text-[#A0AEC0]`}
-            />
-          </span>
-        </label>
+        <SearchField
+          name="q"
+          defaultValue={filters.q ?? ""}
+          placeholder="Name, description, keywords or address"
+          label="Search"
+        />
 
-        <label className="flex flex-col gap-1 min-w-[160px]">
-          <span className={`${TEXT_LABEL} uppercase`}>Sector</span>
-          <select
-            name="sector"
-            defaultValue={filters.sectors[0] ?? ""}
-            className={field}
-            style={borderStyle}
-          >
-            <option value="">Any sector</option>
-            {sectors.map((s) => (
-              <option key={s.sector} value={s.sector}>
-                {s.sector} ({s.count})
-              </option>
-            ))}
-          </select>
-        </label>
+        <FilterSelect
+          name="sector"
+          label="Sector"
+          defaultValue={filters.sectors[0] ?? ""}
+          placeholder="Any sector"
+          options={sectors.map((s) => ({
+            value: s.sector,
+            label: `${s.sector} (${s.count})`,
+          }))}
+        />
 
-        <label className="flex flex-col gap-1 min-w-[130px]">
-          <span className={`${TEXT_LABEL} uppercase`}>Min rating</span>
-          <select
-            name="minRating"
-            defaultValue={filters.minRating?.toString() ?? ""}
-            className={field}
-            style={borderStyle}
-          >
-            <option value="">Any</option>
-            <option value="3">3.0 and up</option>
-            <option value="4">4.0 and up</option>
-            <option value="4.5">4.5 and up</option>
-          </select>
-        </label>
+        <FilterSelect
+          name="minRating"
+          label="Min rating"
+          defaultValue={filters.minRating?.toString() ?? ""}
+          placeholder="Any"
+          options={[
+            { value: "3", label: "3.0 and up" },
+            { value: "4", label: "4.0 and up" },
+            { value: "4.5", label: "4.5 and up" },
+          ]}
+        />
 
-        <label className="flex flex-col gap-1 min-w-[150px]">
-          <span className={`${TEXT_LABEL} uppercase`}>Google rating</span>
-          <select
-            name="hasRating"
-            defaultValue={filters.hasRating ?? ""}
-            className={field}
-            style={borderStyle}
-          >
-            <option value="">Any</option>
-            <option value="yes">Cached</option>
-            <option value="no">Not cached</option>
-          </select>
-        </label>
+        <FilterSelect
+          name="hasRating"
+          label="Google rating"
+          defaultValue={filters.hasRating ?? ""}
+          placeholder="Any"
+          options={[
+            { value: "yes", label: "Cached" },
+            { value: "no", label: "Not cached" },
+          ]}
+        />
 
-        <label className="flex flex-col gap-1 min-w-[150px]">
-          <span className={`${TEXT_LABEL} uppercase`}>Google place</span>
-          <select
-            name="claimed"
-            defaultValue={filters.claimed ?? ""}
-            className={field}
-            style={borderStyle}
-          >
-            <option value="">Any</option>
-            <option value="yes">Claimed</option>
-            <option value="no">Unclaimed</option>
-          </select>
-        </label>
+        <FilterSelect
+          name="claimed"
+          label="Google place"
+          defaultValue={filters.claimed ?? ""}
+          placeholder="Any"
+          options={[
+            { value: "yes", label: "Claimed" },
+            { value: "no", label: "Unclaimed" },
+          ]}
+        />
 
-        <label className="flex flex-col gap-1 min-w-[140px]">
-          <span className={`${TEXT_LABEL} uppercase`}>Created</span>
-          <select
-            name="createdWithin"
-            defaultValue={filters.createdWithinDays?.toString() ?? ""}
-            className={field}
-            style={borderStyle}
-          >
-            <option value="">Any time</option>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-          </select>
-        </label>
+        <FilterSelect
+          name="createdWithin"
+          label="Created"
+          defaultValue={filters.createdWithinDays?.toString() ?? ""}
+          placeholder="Any time"
+          options={[
+            { value: "7", label: "Last 7 days" },
+            { value: "30", label: "Last 30 days" },
+            { value: "90", label: "Last 90 days" },
+          ]}
+        />
 
         <div className="flex items-center gap-2">
           <button

@@ -201,3 +201,109 @@ body {
     display: none;
   }
 }
+
+/*
+ * Base UI Select popup surface.
+ *
+ * The dropdown panel rendered by Select.Popup in a filter bar. Styling mirrors
+ * the existing menu-popup but keeps its own class so filter selects and row
+ * action menus can diverge later without churn.
+ */
+.select-popup {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow:
+    0px 2px 4px 0px rgba(0, 0, 0, 0.04),
+    0px 10px 24px -4px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  min-width: 180px;
+  z-index: 50;
+}
+
+.select-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #2d3748;
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+}
+
+.select-item[data-disabled] {
+  color: #a0aec0;
+  cursor: default;
+}
+
+.select-item:not([data-disabled]):hover,
+.select-item:not([data-disabled])[data-highlighted] {
+  background-color: #edf2f7;
+}
+
+.select-item[data-selected] {
+  color: #38b2ac;
+  font-weight: 600;
+}
+
+/* Active indicator for the Base UI Tabs component. */
+.tabs-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: var(--active-tab-width);
+  transform: translateX(var(--active-tab-left));
+  background-color: #4fd1c5;
+  border-radius: 2px;
+  transition: transform 150ms ease-in-out;
+}
+
+/* Base UI Toast viewport -- fixed bottom-right stack. */
+.toast-viewport {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+  max-width: 380px;
+  width: 100%;
+  pointer-events: none;
+}
+
+.toast-viewport > * {
+  pointer-events: auto;
+}
+
+.toast-root {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow:
+    0px 2px 4px 0px rgba(0, 0, 0, 0.04),
+    0px 10px 24px -4px rgba(0, 0, 0, 0.12);
+  padding: 12px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  outline: none;
+}
+
+.toast-root[data-type="success"] {
+  border-left: 3px solid #48bb78;
+}
+
+.toast-root[data-type="error"] {
+  border-left: 3px solid #fc8181;
+}
+
+.toast-root[data-type="info"] {
+  border-left: 3px solid #4299e1;
+}
