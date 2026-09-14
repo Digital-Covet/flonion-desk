@@ -8,6 +8,10 @@ import { daysAgo, formatDate } from "./time";
  * This is read-only; no marketplace entities exist in the schema. The section
  * surfaces category distribution, partner-readiness, favourites, new arrivals,
  * and ranking previews.
+ *
+ * No read here walks the business table row by row: totals are aggregated in
+ * the database and every row fetch is capped, so the cost of a visit does not
+ * grow with the number of businesses.
  */
 
 export interface CategoryDistribution {
@@ -50,6 +54,10 @@ export interface NewArrivalRow {
 
 export interface MarketplaceData {
   categoryDistribution: CategoryDistribution[];
+  /**
+   * The most complete businesses among the `READINESS_CANDIDATE_LIMIT` most
+   * recently updated, not across the whole table.
+   */
   partnerReadiness: PartnerReadinessRow[];
   favourites: FavouriteRow[];
   orphanedFavourites: number;
@@ -65,14 +73,64 @@ const NEW_ARRIVAL_DAYS = 30;
 const PARTNER_READINESS_LIMIT = 20;
 const FAVOURITES_LIMIT = 10;
 
+/**
+ * Businesses scored for partner readiness.
+ *
+ * Completeness is a score computed in JS, and the ORM cannot order rows by it,
+ * so ranking every business would mean reading the whole table on each visit.
+ * The most recently updated rows are the ones an operator can act on, and a
+ * fixed cap keeps the cost flat as the table grows.
+ */
+const READINESS_CANDIDATE_LIMIT = 500;
+
 export async function loadMarketplace(): Promise<MarketplaceData> {
   const all = db.orm.public.Business;
 
-  // Categories are matched in JS, so the plain business columns are read in
-  // full. The per-business relation counts are not: they are only needed for
-  // the rows actually returned, and are fetched for those below. Favourites are
-  // counted in the database rather than one row per favourite.
-  const [businesses, favouriteGroups, newArrivals] = await Promise.all([
+  const [
+    total,
+    withUsername,
+    withLogo,
+    withSector,
+    withKeywords,
+    withDescription,
+    categoryGroups,
+    favouriteGroups,
+    candidates,
+    newArrivals,
+  ] = await Promise.all([
+    all.aggregate((a) => ({ n: a.count() })),
+
+    // A field counts toward completeness when it is set and not blank, the same
+    // truthiness test the per-row readiness score applies below.
+    all
+      .where((b) => b.username.isNotNull())
+      .where((b) => b.username.neq(""))
+      .aggregate((a) => ({ n: a.count() })),
+    all
+      .where((b) => b.logo.isNotNull())
+      .where((b) => b.logo.neq(""))
+      .aggregate((a) => ({ n: a.count() })),
+    all
+      .where((b) => b.sector.isNotNull())
+      .where((b) => b.sector.neq(""))
+      .aggregate((a) => ({ n: a.count() })),
+    all
+      .where((b) => b.keywords.isNotNull())
+      .where((b) => b.keywords.neq(""))
+      .aggregate((a) => ({ n: a.count() })),
+    all
+      .where((b) => b.description.isNotNull())
+      .where((b) => b.description.neq(""))
+      .aggregate((a) => ({ n: a.count() })),
+
+    // Categories are matched in JS from sector and keywords, so the database
+    // returns one row per distinct pair with its count, not one per business.
+    all.groupBy("sector", "keywords").aggregate((a) => ({ n: a.count() })),
+
+    db.orm.public.FavoritePartner.groupBy("businessId").aggregate((a) => ({
+      n: a.count(),
+    })),
+
     all
       .select(
         "id",
@@ -83,11 +141,9 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
         "keywords",
         "description",
       )
+      .orderBy((b) => b.updatedAt.desc())
+      .limit(READINESS_CANDIDATE_LIMIT)
       .all(),
-
-    db.orm.public.FavoritePartner.groupBy("businessId").aggregate((a) => ({
-      n: a.count(),
-    })),
 
     all
       .where((b) => b.createdAt.gte(daysAgo(NEW_ARRIVAL_DAYS)))
@@ -106,43 +162,28 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
       .all(),
   ]);
 
-  const byId = new Map(businesses.map((b) => [b.id, b]));
-
   // Category distribution
   const catMap = new Map<string, number>();
-  for (const b of businesses) {
+  for (const group of categoryGroups) {
     const cat =
-      matchBusinessToCategory(b.sector, b.keywords) ?? "Uncategorised";
-    catMap.set(cat, (catMap.get(cat) ?? 0) + 1);
+      matchBusinessToCategory(group.sector, group.keywords) ?? "Uncategorised";
+    catMap.set(cat, (catMap.get(cat) ?? 0) + group.n);
   }
   const categoryDistribution: CategoryDistribution[] = [...catMap.entries()]
     .map(([category, count]) => ({ category, count }))
     .sort((a, b) => b.count - a.count);
 
-  // Favourites leaderboard. A favourite whose business is not in the list is
-  // orphaned.
-  const favouriteRows: FavouriteRow[] = [];
-  let orphanedFavourites = 0;
-  for (const group of favouriteGroups) {
-    const b = byId.get(group.businessId);
-    if (!b) {
-      orphanedFavourites += group.n;
-      continue;
-    }
-    favouriteRows.push({
-      id: b.id,
-      name: b.name,
-      logo: b.logo,
-      favouriteCount: group.n,
-    });
-  }
-  const favouritesLeaderboard = favouriteRows
-    .sort((a, b) => b.favouriteCount - a.favouriteCount)
+  // Grouped rows cannot be ordered by their count through the ORM, so the
+  // favourite groups (one id and one number each) are ranked here and only the
+  // leaders' businesses are fetched.
+  const leaders = [...favouriteGroups]
+    .sort((a, b) => b.n - a.n)
     .slice(0, FAVOURITES_LIMIT);
+  const leaderIds = leaders.map((g) => g.businessId);
 
-  // Partner readiness: score every business, then count relations for the top
+  // Partner readiness: score the candidates, then count relations for the top
   // rows only.
-  const scored = businesses
+  const scored = candidates
     .map((b) => {
       const fieldsPresent = [
         b.username,
@@ -156,27 +197,52 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
         completeness: Math.round((fieldsPresent / 5) * 100),
       };
     })
-    .sort((a, b) => b.completeness - a.completeness);
+    .sort((a, b) => b.completeness - a.completeness)
+    .slice(0, PARTNER_READINESS_LIMIT);
+  const topIds = scored.map((s) => s.business.id);
 
-  const topIds = scored
-    .slice(0, PARTNER_READINESS_LIMIT)
-    .map((s) => s.business.id);
-  const counts =
+  const [leaderRows, counts] = await Promise.all([
+    leaderIds.length === 0
+      ? []
+      : all
+          .where((b) => b.id.in(leaderIds))
+          .select("id", "name", "logo")
+          .all(),
     topIds.length === 0
       ? []
-      : await all
+      : all
           .where((b) => b.id.in(topIds))
           .select("id")
           .include("services", (s) => s.count())
           .include("projects", (p) => p.count())
           .include("businessContacts", (c) => c.count())
           .include("availabilitySlots", (s) => s.count())
-          .all();
-  const countsById = new Map(counts.map((c) => [c.id, c]));
+          .all(),
+  ]);
 
-  const partnerReadiness: PartnerReadinessRow[] = scored
-    .slice(0, PARTNER_READINESS_LIMIT)
-    .map(({ business: b, completeness }) => {
+  // A leader whose business row is gone is orphaned. The foreign key cascades
+  // business deletes, so this should stay zero; the count exists to make it
+  // visible if that ever stops holding.
+  const leaderById = new Map(leaderRows.map((b) => [b.id, b]));
+  const favourites: FavouriteRow[] = [];
+  let orphanedFavourites = 0;
+  for (const group of leaders) {
+    const b = leaderById.get(group.businessId);
+    if (!b) {
+      orphanedFavourites += group.n;
+      continue;
+    }
+    favourites.push({
+      id: b.id,
+      name: b.name,
+      logo: b.logo,
+      favouriteCount: group.n,
+    });
+  }
+
+  const countsById = new Map(counts.map((c) => [c.id, c]));
+  const partnerReadiness: PartnerReadinessRow[] = scored.map(
+    ({ business: b, completeness }) => {
       const c = countsById.get(b.id);
       return {
         id: b.id,
@@ -191,16 +257,19 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
         slotCount: c?.availabilitySlots ?? 0,
         completeness,
       };
-    });
+    },
+  );
 
-  // Stats
-  const withUsername = businesses.filter((b) => b.username).length;
+  // Stats. Averaging each business's (present / 5) equals total present fields
+  // over five per business, so the average needs only the per-field counts.
+  const fieldsPresent =
+    withUsername.n +
+    withLogo.n +
+    withSector.n +
+    withKeywords.n +
+    withDescription.n;
   const avgCompleteness =
-    scored.length > 0
-      ? Math.round(
-          scored.reduce((sum, s) => sum + s.completeness, 0) / scored.length,
-        )
-      : 0;
+    total.n > 0 ? Math.round((fieldsPresent / (total.n * 5)) * 100) : 0;
 
   // New arrivals
   const newArrivalRows: NewArrivalRow[] = newArrivals.map((b) => ({
@@ -217,12 +286,12 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
   return {
     categoryDistribution,
     partnerReadiness,
-    favourites: favouritesLeaderboard,
+    favourites,
     orphanedFavourites,
     newArrivals: newArrivalRows,
     stats: {
-      totalBusinesses: businesses.length,
-      withUsername,
+      totalBusinesses: total.n,
+      withUsername: withUsername.n,
       avgCompleteness,
     },
   };
