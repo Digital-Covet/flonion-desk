@@ -105,17 +105,17 @@ export function PageHeader({
           </div>
         ) : null}
         {/*
-          The operator's identity comes from the console's own token map, not
+          The operator's identity comes from the IAM OAuth session, not
           from `User.role` — that column holds a customer's staff roles and has
-          nothing to say about who is operating this console. Until the console
-          has real accounts, an unauthenticated reader is labelled as such
-          rather than being given a title it has not earned.
+          nothing to say about who is operating this console. An unauthenticated
+          visitor is labelled as such rather than being given a title it has
+          not earned.
         */}
         <Hint
           label={
             operator
-              ? `Signed in with an operator token as ${operator}`
-              : "No operator token presented — reads are open, writes are not"
+              ? `Signed in as ${operator}`
+              : "Not signed in — sign in to access the console"
           }
           render={<div />}
           className={`flex items-center gap-2 ${CHIP} px-3 py-1.5`}

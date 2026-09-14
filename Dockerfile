@@ -17,7 +17,7 @@ COPY . /app/
 COPY --from=development-dependencies-env /app/node_modules /app/node_modules
 RUN pnpm run build
 
-# Configuration (DATABASE_URL, DESK_OPERATOR_TOKENS, ...) is passed at runtime,
+# Configuration (DATABASE_URL, BETTER_AUTH_*, OAUTH_*, ...) is passed at runtime,
 # never baked into the image.
 FROM node:24-alpine
 WORKDIR /app

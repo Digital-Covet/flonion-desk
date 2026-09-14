@@ -53,7 +53,6 @@ Create a `.env` file in the project root for local development. In production, p
 
 ```env
 DATABASE_URL="postgresql://user:password@localhost:5432/mydb?sslmode=require"
-DESK_OPERATOR_TOKENS="alice=<openssl rand -base64 32>,bob=<openssl rand -base64 32>"
 # Local development only; ignored when NODE_ENV=production.
 OPERATOR_READ_OPEN=1
 ```
@@ -61,11 +60,10 @@ OPERATOR_READ_OPEN=1
 | Variable | Required | Purpose |
 |---|---|---|
 | `DATABASE_URL` | Yes | Postgres connection string, read by `prisma.config.ts` (CLI) and `app/prisma/db.ts` (runtime). Neon pooled and unpooled URLs both work. |
-| `DESK_OPERATOR_TOKENS` | Yes in production | `id=token` pairs, one per person. Every read and write requires a session unlocked with one of these at `/console/unlock`. The server refuses to start in production when this is empty. Generate tokens with `openssl rand -base64 32`; rotating a token revokes that person's sessions. |
 | `OPERATOR_READ_OPEN` | No | Set to `1` to serve reads without a session in development. Ignored in production. Writes always require a session. |
 | `TENANT_APP_URL`, `OPERATOR_HANDOFF_SECRET` | For impersonation | Where the impersonation handoff redirects, and the HMAC secret shared with the tenant app. |
 | `IAM_FRONT_CHANNEL_SECRET`, `IAM_ISSUER` | For IAM sign-out | The IAM's `BETTER_AUTH_SECRET`, used to verify front-channel `logout_token`s, and the issuer those tokens must carry. `IAM_ISSUER` defaults to `https://iam.digitalcovet.com/api/auth` (the IAM's `BETTER_AUTH_URL` plus `/api/auth`); set it when pairing with a staging or local IAM, or every logout notification is rejected. |
-| `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `OAUTH_CLIENT_ID_DESK`, `OAUTH_CLIENT_SECRET_DESK` | For `/login` | Operator OAuth. `/api/auth/*` fails until all four are set. Signing in does not yet grant console access; the operator token does. |
+| `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `OAUTH_CLIENT_ID_DESK`, `OAUTH_CLIENT_SECRET_DESK` | For `/login` | Operator OAuth via Digital Covet IAM. `/api/auth/*` fails until all four are set. Signing in creates the session cookie that `requireOperatorRead`/`requireOperator` check. |
 
 After changing a route, run `pnpm check:read-gate`. It builds the app and fails if any console loader serves data without an operator session.
 
