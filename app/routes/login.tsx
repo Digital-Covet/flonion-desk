@@ -50,11 +50,14 @@ function safeReturnTo(raw: string | null): string {
 export default function Login() {
   const [params] = useSearchParams();
   const returnTo = safeReturnTo(params.get("returnTo"));
+  const authError = params.get("error");
 
   const handleSignIn = async () => {
     await authClient.signIn.social({
       provider: "desk",
       callbackURL: returnTo,
+      errorCallbackURL: "/login?error=auth_failed",
+      newUserCallbackURL: "/",
     });
   };
 
@@ -77,6 +80,16 @@ export default function Login() {
         >
           Sign in with Digital Covet
         </button>
+
+        {authError ? (
+          <p
+            role="alert"
+            className="text-xs text-red-600 text-center mt-4"
+          >
+            Sign-in failed ({authError}). Please try again or contact support
+            if this persists.
+          </p>
+        ) : null}
 
         <p className="text-xs text-gray-400 text-center mt-6">
           Authentication powered by Digital Covet IAM

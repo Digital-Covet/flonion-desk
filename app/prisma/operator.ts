@@ -36,7 +36,11 @@ export async function currentOperator(request: Request): Promise<Operator | null
       id: session.user.id,
       label: session.user.name ?? session.user.email ?? "Unknown",
     };
-  } catch {
+  } catch (error) {
+    console.error(
+      "[Desk] getSession failed",
+      error instanceof Error ? error.message : error,
+    );
     return null;
   }
 }
