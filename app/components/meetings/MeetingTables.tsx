@@ -157,7 +157,7 @@ export function MeetingRequestTable({
               dialog: {
                 title: "Delete this meeting request?",
                 description:
-                  "The request is permanently deleted and its slot is freed.",
+                  "The request is deleted and its slot is freed. An archived copy is kept for a year.",
                 confirmLabel: "Delete request",
               },
             },
@@ -260,7 +260,7 @@ export function TeamMeetingTable({ rows }: { rows: TeamMeetingRow[] }) {
               dialog: {
                 title: `Delete "${tm.title}"?`,
                 description:
-                  "The team meeting is permanently deleted from the business's calendar.",
+                  "The team meeting is deleted from the business's calendar. An archived copy is kept for a year.",
                 confirmLabel: "Delete meeting",
                 confirmValue: tm.title,
                 text: { label: "Reason" },

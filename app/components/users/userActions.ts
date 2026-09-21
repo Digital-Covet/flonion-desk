@@ -61,7 +61,7 @@ export function userActionItems(u: {
       dialog: {
         title: `Delete ${u.name}?`,
         description:
-          "This permanently deletes the user, their sessions and any business they own. It cannot be undone.",
+          "This deletes the user, their sessions and any business they own. It cannot be undone from the desk; an archived copy is kept in the database for a year.",
         confirmLabel: "Delete user",
         confirmValue: u.email,
       },

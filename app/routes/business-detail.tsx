@@ -249,7 +249,7 @@ export default function BusinessDetailRoute({
                   dialog: {
                     title: `Delete ${business.name}?`,
                     description:
-                      "This permanently deletes the business with its slots, meetings, services, projects and contacts. Reviews are kept but detached. It cannot be undone.",
+                      "This deletes the business with its slots, meetings, services, projects and contacts. Reviews are kept but detached. It cannot be undone from the desk; an archived copy is kept in the database for a year.",
                     confirmLabel: "Delete business",
                     confirmValue: business.name,
                   },

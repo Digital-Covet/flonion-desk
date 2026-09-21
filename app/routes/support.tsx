@@ -515,7 +515,7 @@ export default function Support({ loaderData }: Route.ComponentProps) {
                               dialog: {
                                 title: "Delete this feedback?",
                                 description:
-                                  "The feedback and every reply stored with it are permanently deleted.",
+                                  "The feedback and every reply stored with it are deleted. An archived copy is kept for a year.",
                                 confirmLabel: "Delete",
                                 confirmValue: fb.email,
                               },

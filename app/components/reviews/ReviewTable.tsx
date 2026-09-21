@@ -180,7 +180,7 @@ export function ReviewTable({
               dialog: {
                 title: "Delete this review?",
                 description:
-                  "The review and its analytics are permanently deleted. Printed QR codes that point at it stop working.",
+                  "The review and its analytics are deleted and printed QR codes that point at it stop working. An archived copy is kept for a year.",
                 confirmLabel: "Delete review",
                 confirmValue: reviewConfirmValue(r.id),
               },
