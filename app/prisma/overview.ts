@@ -226,19 +226,19 @@ export async function loadOverview(): Promise<OverviewData> {
       sector: b.sector,
       rating: b.rating,
       reviewCount: b.reviewCount,
-      onboardingCompleted: b.user.onboardingCompleted,
+      onboardingCompleted: b.user?.onboardingCompleted ?? false,
     })),
     activity: [
       ...joinRequests.map((j) => ({
         id: `join-${j.id}`,
         kind: "join" as const,
-        title: `${j.user.name} asked to join ${j.business.name}`,
+        title: `${j.user?.name ?? "Someone"} asked to join ${j.business?.name ?? "a business"}`,
         at: stampToMillis(j.createdAt),
       })),
       ...invitations.map((i) => ({
         id: `invite-${i.id}`,
         kind: "invite" as const,
-        title: `${i.email} invited to ${i.business.name} as ${i.role}`,
+        title: `${i.email} invited to ${i.business?.name ?? "a business"} as ${i.role}`,
         at: stampToMillis(i.createdAt),
       })),
       ...feedback.map((f) => ({

@@ -188,10 +188,10 @@ export async function loadBusinessList(
     qrScanCount: b.qrScanCount,
     claimed: b.placeId !== null,
     teamSize: b.users,
-    ownerId: b.user.id,
-    ownerName: b.user.name,
-    ownerEmail: b.user.email,
-    ownerOnboarded: b.user.onboardingCompleted,
+    ownerId: b.user?.id ?? "",
+    ownerName: b.user?.name ?? "Unknown",
+    ownerEmail: b.user?.email ?? "",
+    ownerOnboarded: b.user?.onboardingCompleted ?? false,
     ownerBanned: b.user?.banned ?? false,
     status: b.status,
     suspendReason: b.suspendReason,
@@ -292,20 +292,30 @@ export async function loadBusinessDetail(
       slotDuration: b.slotDuration,
       timezone: b.timezone,
     },
-    owner: {
-      id: b.user.id,
-      name: b.user.name,
-      email: b.user.email,
-      role: b.user.role,
-      emailVerified: b.user.emailVerified,
-      twoFactorEnabled: b.user.twoFactorEnabled ?? false,
-      onboardingCompleted: b.user.onboardingCompleted,
-    },
+    owner: b.user
+      ? {
+          id: b.user.id,
+          name: b.user.name,
+          email: b.user.email,
+          role: b.user.role,
+          emailVerified: b.user.emailVerified,
+          twoFactorEnabled: b.user.twoFactorEnabled ?? false,
+          onboardingCompleted: b.user.onboardingCompleted,
+        }
+      : {
+          id: "",
+          name: "Unknown",
+          email: "",
+          role: "owner",
+          emailVerified: false,
+          twoFactorEnabled: false,
+          onboardingCompleted: null,
+        },
     // The owner is also a member: an earlier tenant-app migration backfilled
     // owners into their own team. They are rendered in their own card above, so
     // listing them again here would read as two people.
     members: b.users
-      .filter((u) => u.id !== b.user.id)
+      .filter((u) => u.id !== b.user?.id)
       .map((u) => ({
         id: u.id,
         name: u.name,
