@@ -154,7 +154,7 @@ export async function loadAiUsageList(
     model: r.model,
     promptTokens: r.promptTokens,
     completionTokens: r.completionTokens,
-    costUsd: r.costUsd,
+    costUsd: r.costUsd === null ? null : Number(r.costUsd),
     latencyMs: r.latencyMs,
     ok: r.ok,
     errorKind: r.errorKind,
