@@ -1,13 +1,11 @@
 import { redirect, useOutletContext } from "react-router";
-import { ActionMenu } from "../components/shell/ActionMenu";
 import { FilterBar } from "../components/shell/FilterBar";
 import { PageHeader } from "../components/shell/PageHeader";
 import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
-import { StatusBadge } from "../components/shell/StatusBadge";
 import { FilterSelect, SearchField } from "../components/ui/FilterSelect";
-import { userActionItems } from "../components/users/userActions";
+import { UserTable } from "../components/users/UserTable";
 import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
@@ -224,7 +222,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Users({ loaderData }: Route.ComponentProps) {
-  const { data, filters, error } = loaderData;
+  const { data, filters, params, error } = loaderData;
   const { operator } = useOutletContext<ConsoleContext>();
 
   return (
@@ -266,65 +264,11 @@ export default function Users({ loaderData }: Route.ComponentProps) {
             />
           </FilterBar>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 text-left text-gray-500">
-                  <th className="pb-2 font-medium">Name</th>
-                  <th className="pb-2 font-medium">Email</th>
-                  <th className="pb-2 font-medium">Role</th>
-                  <th className="pb-2 font-medium">Standing</th>
-                  <th className="pb-2 font-medium">Verified</th>
-                  <th className="pb-2 font-medium">2FA</th>
-                  <th className="pb-2 font-medium">Banned</th>
-                  <th className="pb-2 font-medium">Created</th>
-                  <th className="pb-2 font-medium">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.page.rows.map((u) => (
-                  <tr key={u.id} className="border-b border-gray-100">
-                    <td className="py-2">
-                      <a
-                        href={`/users/${u.id}`}
-                        className="text-teal-600 hover:underline"
-                      >
-                        {u.name}
-                      </a>
-                    </td>
-                    <td className="py-2 text-gray-600">{u.email}</td>
-                    <td className="py-2">{u.role}</td>
-                    <td className="py-2 text-gray-600">{u.standing}</td>
-                    <td className="py-2">{u.emailVerified ? "Yes" : "No"}</td>
-                    <td className="py-2">
-                      {u.twoFactorEnabled ? "Yes" : "No"}
-                    </td>
-                    <td className="py-2">
-                      {u.banned ? (
-                        <StatusBadge
-                          tone="bad"
-                          title={u.banReason ?? undefined}
-                        >
-                          {u.banExpires ? `Until ${u.banExpires}` : "Banned"}
-                        </StatusBadge>
-                      ) : (
-                        "No"
-                      )}
-                    </td>
-                    <td className="py-2 text-gray-600">{u.created}</td>
-                    <td className="py-2 text-right">
-                      <ActionMenu
-                        label={`Actions for ${u.name}`}
-                        items={userActionItems(u)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <UserTable
+            rows={data.page.rows}
+            sort={params.sort}
+            dir={params.dir}
+          />
 
           <Pagination page={data.page} />
         </>

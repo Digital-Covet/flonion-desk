@@ -29,6 +29,7 @@ export function DataTable<TRow>({
   sort,
   dir,
   empty,
+  framed = true,
 }: {
   rows: TRow[];
   columns: Column<TRow>[];
@@ -37,17 +38,22 @@ export function DataTable<TRow>({
   dir?: SortDir;
   /** Shown in place of the table when there are no rows. */
   empty: string;
+  /**
+   * Wrap in the CARD panel. Set to false when the table lives inside a
+   * section that already owns the card, such as the Marketplace panels.
+   */
+  framed?: boolean;
 }) {
   if (rows.length === 0) {
     return (
-      <div className={`${CARD} p-8`}>
+      <div className={framed ? `${CARD} p-8` : "py-8"}>
         <p className={TEXT_MUTED}>{empty}</p>
       </div>
     );
   }
 
   return (
-    <div className={`${CARD} overflow-x-auto`}>
+    <div className={framed ? `${CARD} overflow-x-auto` : "overflow-x-auto"}>
       <table className="w-full min-w-[900px] border-collapse">
         <thead>
           <tr>

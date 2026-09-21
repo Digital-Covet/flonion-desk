@@ -1,14 +1,15 @@
 import { Tabs } from "@base-ui/react/tabs";
 import { useOutletContext } from "react-router";
-import { ActionMenu } from "../components/shell/ActionMenu";
+import {
+  MeetingRequestTable,
+  TeamMeetingTable,
+} from "../components/meetings/MeetingTables";
 import { FilterBar } from "../components/shell/FilterBar";
 import { PageHeader } from "../components/shell/PageHeader";
 import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
-import { type BadgeTone, StatusBadge } from "../components/shell/StatusBadge";
 import { FilterSelect } from "../components/ui/FilterSelect";
-import { banUserItem } from "../components/users/userActions";
 import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
@@ -214,15 +215,8 @@ export async function action({ request }: Route.ActionArgs) {
 
 const MEETING_STATUSES = ["pending", "accepted", "rejected", "cancelled"];
 
-const STATUS_TONE: Record<string, BadgeTone> = {
-  pending: "info",
-  accepted: "good",
-  rejected: "neutral",
-  cancelled: "neutral",
-};
-
 export default function Meetings({ loaderData }: Route.ComponentProps) {
-  const { data, filters, error } = loaderData;
+  const { data, filters, params, error } = loaderData;
   const { operator } = useOutletContext<ConsoleContext>();
 
   return (
@@ -290,183 +284,16 @@ export default function Meetings({ loaderData }: Route.ComponentProps) {
             </Tabs.List>
 
             <Tabs.Panel value="requests" className="outline-none">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-left text-gray-500">
-                      <th className="pb-2 font-medium">Date</th>
-                      <th className="pb-2 font-medium">Time</th>
-                      <th className="pb-2 font-medium">Business</th>
-                      <th className="pb-2 font-medium">Requester</th>
-                      <th className="pb-2 font-medium">Type</th>
-                      <th className="pb-2 font-medium">Status</th>
-                      <th className="pb-2 font-medium">Meet</th>
-                      <th className="pb-2 font-medium">Created</th>
-                      <th className="pb-2 font-medium">
-                        <span className="sr-only">Actions</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.requests.rows.map((r) => (
-                      <tr key={r.id} className="border-b border-gray-100">
-                        <td className="py-2">{r.slotDate}</td>
-                        <td className="py-2">{r.slotTime}</td>
-                        <td className="py-2">{r.businessName}</td>
-                        <td className="py-2">{r.requesterName}</td>
-                        <td className="py-2">
-                          <span
-                            className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                              r.isGuest
-                                ? "bg-blue-50 text-blue-700"
-                                : "bg-gray-100 text-gray-600"
-                            }`}
-                          >
-                            {r.isGuest ? "Guest" : "Member"}
-                          </span>
-                        </td>
-                        <td className="py-2">
-                          <StatusBadge tone={STATUS_TONE[r.status] ?? "warn"}>
-                            {r.status}
-                          </StatusBadge>
-                        </td>
-                        <td className="py-2">{r.hasMeetLink ? "Yes" : "—"}</td>
-                        <td className="py-2 text-gray-600">{r.created}</td>
-                        <td className="py-2 text-right">
-                          <ActionMenu
-                            label={`Actions for the request from ${r.requesterName}`}
-                            items={[
-                              {
-                                label: "Reject…",
-                                intent: "set-meeting-status",
-                                payload: {
-                                  meetingId: r.id,
-                                  status: "rejected",
-                                },
-                                hidden: r.status !== "pending",
-                                dialog: {
-                                  title: "Reject this meeting request?",
-                                  description:
-                                    "The request is marked rejected and its slot is freed. No email is sent to the requester.",
-                                  confirmLabel: "Reject request",
-                                  text: { label: "Reason" },
-                                },
-                              },
-                              {
-                                label: "Cancel…",
-                                intent: "set-meeting-status",
-                                payload: {
-                                  meetingId: r.id,
-                                  status: "cancelled",
-                                },
-                                hidden:
-                                  r.status === "cancelled" ||
-                                  r.status === "rejected",
-                                dialog: {
-                                  title: "Cancel this meeting?",
-                                  description:
-                                    "The meeting is marked cancelled and its slot is freed. No email is sent to either side.",
-                                  confirmLabel: "Cancel meeting",
-                                  text: { label: "Reason" },
-                                },
-                              },
-                              {
-                                label: "Clear Meet link",
-                                intent: "clear-meet-link",
-                                payload: { meetingId: r.id },
-                                hidden: !r.hasMeetLink,
-                              },
-                              {
-                                ...banUserItem(
-                                  r.requesterId ?? "",
-                                  r.requesterName,
-                                  "Ban requester…",
-                                  r.requesterBanned,
-                                ),
-                                hidden: !r.requesterId || r.requesterBanned,
-                              },
-                              {
-                                label: "Delete…",
-                                intent: "delete-meeting",
-                                payload: { meetingId: r.id },
-                                destructive: true,
-                                dialog: {
-                                  title: "Delete this meeting request?",
-                                  description:
-                                    "The request is permanently deleted and its slot is freed.",
-                                  confirmLabel: "Delete request",
-                                },
-                              },
-                            ]}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <MeetingRequestTable
+                rows={data.requests.rows}
+                sort={params.sort}
+                dir={params.dir}
+              />
               <Pagination page={data.requests} />
             </Tabs.Panel>
 
             <Tabs.Panel value="team" className="outline-none">
-              {data.teamMeetings.length === 0 ? (
-                <p className="text-sm text-gray-500">No team meetings found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-left text-gray-500">
-                        <th className="pb-2 font-medium">Title</th>
-                        <th className="pb-2 font-medium">Business</th>
-                        <th className="pb-2 font-medium">Date</th>
-                        <th className="pb-2 font-medium">Time</th>
-                        <th className="pb-2 font-medium">Location</th>
-                        <th className="pb-2 font-medium">Meet</th>
-                        <th className="pb-2 font-medium">
-                          <span className="sr-only">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.teamMeetings.map((tm) => (
-                        <tr key={tm.id} className="border-b border-gray-100">
-                          <td className="py-2 font-medium">{tm.title}</td>
-                          <td className="py-2">{tm.businessName}</td>
-                          <td className="py-2">{tm.date}</td>
-                          <td className="py-2">
-                            {tm.startTime} — {tm.endTime}
-                          </td>
-                          <td className="py-2 text-gray-600">{tm.location}</td>
-                          <td className="py-2">
-                            {tm.hasMeetLink ? "Yes" : "—"}
-                          </td>
-                          <td className="py-2 text-right">
-                            <ActionMenu
-                              label={`Actions for ${tm.title}`}
-                              items={[
-                                {
-                                  label: "Delete…",
-                                  intent: "delete-team-meeting",
-                                  payload: { meetingId: tm.id },
-                                  destructive: true,
-                                  dialog: {
-                                    title: `Delete "${tm.title}"?`,
-                                    description:
-                                      "The team meeting is permanently deleted from the business's calendar.",
-                                    confirmLabel: "Delete meeting",
-                                    confirmValue: tm.title,
-                                    text: { label: "Reason" },
-                                  },
-                                },
-                              ]}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <TeamMeetingTable rows={data.teamMeetings} />
             </Tabs.Panel>
           </Tabs.Root>
         </>
