@@ -32,6 +32,8 @@ export interface BusinessFilters {
   hasRating: "yes" | "no" | null;
   /** Whether the owner has claimed a Google place. */
   claimed: "yes" | "no" | null;
+  /** Moderation state: suspended, or hidden from the marketplace. */
+  moderation: "suspended" | "hidden" | "active" | null;
   createdWithinDays: number | null;
 }
 
@@ -56,6 +58,10 @@ export function readBusinessFilters(url: URL): BusinessFilters {
     minRating: num("minRating"),
     hasRating: yesNo("hasRating"),
     claimed: yesNo("claimed"),
+    moderation: (() => {
+      const v = p.get("moderation");
+      return v === "suspended" || v === "hidden" || v === "active" ? v : null;
+    })(),
     createdWithinDays:
       createdWithin !== null && createdWithin >= 0 && createdWithin <= 36_500
         ? createdWithin
@@ -71,6 +77,7 @@ export function hasActiveFilters(f: BusinessFilters): boolean {
     f.minRating !== null ||
     f.hasRating !== null ||
     f.claimed !== null ||
+    f.moderation !== null ||
     f.createdWithinDays !== null
   );
 }

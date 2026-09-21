@@ -1,11 +1,15 @@
-import { useOutletContext } from "react-router";
+import { redirect, useOutletContext } from "react-router";
 import { BusinessDetail } from "../components/businesses/BusinessDetail";
+import { businessActionItems } from "../components/businesses/businessActions";
+import { ActionButtons } from "../components/shell/ActionMenu";
 import { PageHeader } from "../components/shell/PageHeader";
 import { SectionError } from "../components/shell/SectionError";
+import { StatusBadge } from "../components/shell/StatusBadge";
 import { clientIp, recordAudit } from "../prisma/audit";
 import { loadBusinessDetail } from "../prisma/businesses";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
+import { readBody } from "../prisma/moderation";
 import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/business-detail";
@@ -29,9 +33,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
   const operator = await requireOperator(request);
-  const body = await request.json();
-  const intent = body.intent as string;
-  const businessId = body.businessId as string;
+  const body = await readBody(request);
+  const intent = String(body.intent ?? "");
+  const businessId = typeof body.businessId === "string" ? body.businessId : "";
   const ip = clientIp(request);
 
   const b = await db.orm.public.Business.where((x) => x.id.eq(businessId))
@@ -164,7 +168,9 @@ export async function action({ request }: Route.ActionArgs) {
         });
       });
 
-      return { ok: true, redirect: "/businesses" };
+      // A real redirect, not a hint in the JSON: the page that ran this is
+      // about to lose its row, and a fetcher follows a redirect as navigation.
+      return redirect("/businesses");
     }
 
     default:
@@ -198,7 +204,61 @@ export default function BusinessDetailRoute({
       />
 
       {business ? (
-        <BusinessDetail business={business} />
+        <>
+          <section className="mb-6 rounded-lg bg-white p-4 shadow-sm border border-gray-100">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-500 mr-1">
+                Moderation
+              </h2>
+              {business.moderation.status === "suspended" ? (
+                <StatusBadge tone="bad">
+                  Suspended
+                  {business.moderation.suspendedAt
+                    ? ` since ${business.moderation.suspendedAt}`
+                    : ""}
+                </StatusBadge>
+              ) : (
+                <StatusBadge tone="good">Active</StatusBadge>
+              )}
+              {business.moderation.marketplaceHidden ? (
+                <StatusBadge tone="neutral">
+                  Hidden from marketplace
+                </StatusBadge>
+              ) : null}
+              {business.moderation.ownerBanned ? (
+                <StatusBadge tone="warn">Owner banned</StatusBadge>
+              ) : null}
+            </div>
+            {business.moderation.suspendReason ? (
+              <p className="mb-3 text-sm text-gray-600">
+                Reason: {business.moderation.suspendReason}
+              </p>
+            ) : null}
+            <ActionButtons
+              items={[
+                ...businessActionItems({
+                  id: business.id,
+                  name: business.name,
+                  ...business.moderation,
+                }),
+                {
+                  label: "Delete business…",
+                  intent: "delete-business",
+                  payload: { businessId: business.id },
+                  destructive: true,
+                  dialog: {
+                    title: `Delete ${business.name}?`,
+                    description:
+                      "This permanently deletes the business with its slots, meetings, services, projects and contacts. Reviews are kept but detached. It cannot be undone.",
+                    confirmLabel: "Delete business",
+                    confirmValue: business.name,
+                  },
+                },
+              ]}
+            />
+          </section>
+          <BusinessDetail business={business} />
+        </>
       ) : (
         <SectionError
           title={notFound ? "Business not found" : "Business unavailable"}

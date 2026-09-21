@@ -1,6 +1,8 @@
 import { useOutletContext } from "react-router";
+import { ActionButtons } from "../components/shell/ActionMenu";
 import { PageHeader } from "../components/shell/PageHeader";
 import { SectionError } from "../components/shell/SectionError";
+import { userActionItems } from "../components/users/userActions";
 import { readFailure } from "../prisma/loader-error";
 import { requireOperatorRead } from "../prisma/operator";
 import { loadUserDetail } from "../prisma/users";
@@ -31,11 +33,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   }
 }
 
-export async function action({ request: _request }: Route.ActionArgs) {
-  // Impersonation is POSTed from the user detail page via useFetcher to /impersonate
-  // This action exists as a placeholder; all user mutations go through /users.
+/**
+ * The toolbar's items name `/users` as their action, where every user
+ * mutation lives; nothing posts to this route.
+ */
+export async function action(_: Route.ActionArgs) {
   return Response.json(
-    { error: "Use the section route for mutations" },
+    { error: "User mutations are handled by /users" },
     { status: 400 },
   );
 }
@@ -63,6 +67,13 @@ export default function UserDetail({ loaderData }: Route.ComponentProps) {
         />
       ) : (
         <div className="mt-6 grid gap-6 max-w-3xl">
+          <section className="rounded-lg bg-white p-4 shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-500 mb-3">
+              Moderation
+            </h2>
+            <ActionButtons items={userActionItems(user)} />
+          </section>
+
           {/* Identity card */}
           <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold mb-4">Identity</h2>

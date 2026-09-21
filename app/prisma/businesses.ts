@@ -68,6 +68,16 @@ function filtered(f: BusinessFilters) {
   if (f.claimed === "yes") c = c.where((b) => b.placeId.isNotNull());
   if (f.claimed === "no") c = c.where((b) => b.placeId.isNull());
 
+  if (f.moderation === "suspended")
+    c = c.where((b) => b.status.eq("suspended"));
+  if (f.moderation === "hidden")
+    c = c.where((b) => b.marketplaceHidden.eq(true));
+  if (f.moderation === "active") {
+    c = c
+      .where((b) => b.status.eq("active"))
+      .where((b) => b.marketplaceHidden.eq(false));
+  }
+
   if (f.createdWithinDays !== null) {
     const cutoff = daysAgo(f.createdWithinDays);
     c = c.where((b) => b.createdAt.gte(cutoff));
@@ -121,9 +131,12 @@ export async function loadBusinessList(
         "qrScanCount",
         "placeId",
         "createdAt",
+        "status",
+        "suspendReason",
+        "marketplaceHidden",
       )
       .include("user", (u) =>
-        u.select("id", "name", "email", "onboardingCompleted"),
+        u.select("id", "name", "email", "onboardingCompleted", "banned"),
       )
       .include("users", (u) => u.count())
       .orderBy([
@@ -179,6 +192,10 @@ export async function loadBusinessList(
     ownerName: b.user.name,
     ownerEmail: b.user.email,
     ownerOnboarded: b.user.onboardingCompleted,
+    ownerBanned: b.user?.banned ?? false,
+    status: b.status,
+    suspendReason: b.suspendReason,
+    marketplaceHidden: b.marketplaceHidden,
     created: formatDate(b.createdAt),
   }));
 
@@ -214,6 +231,7 @@ export async function loadBusinessDetail(
         "onboardingCompleted",
         "twoFactorEnabled",
         "role",
+        "banned",
       ),
     )
     .include("users", (u) =>
@@ -256,6 +274,13 @@ export async function loadBusinessDetail(
     rating: b.rating,
     reviewCount: b.reviewCount,
     qrScanCount: b.qrScanCount,
+    moderation: {
+      status: b.status,
+      suspendReason: b.suspendReason,
+      suspendedAt: b.suspendedAt ? formatDate(b.suspendedAt) : null,
+      marketplaceHidden: b.marketplaceHidden,
+      ownerBanned: b.user?.banned ?? false,
+    },
     created: formatDate(b.createdAt),
     updated: formatDate(b.updatedAt),
     schedule: {

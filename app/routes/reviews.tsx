@@ -1,13 +1,17 @@
 import { useOutletContext } from "react-router";
+import { ActionMenu } from "../components/shell/ActionMenu";
 import { FilterBar } from "../components/shell/FilterBar";
 import { PageHeader } from "../components/shell/PageHeader";
 import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
-import { SearchField } from "../components/ui/FilterSelect";
+import { StatusBadge } from "../components/shell/StatusBadge";
+import { FilterSelect, SearchField } from "../components/ui/FilterSelect";
+import { banUserItem } from "../components/users/userActions";
 import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
+import { readBody, readText } from "../prisma/moderation";
 import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { readPageParams, readWindowDays } from "../prisma/paging";
 import { loadReviewList, REVIEW_SORT_KEYS } from "../prisma/reviews";
@@ -50,19 +54,26 @@ export async function loader({ request }: Route.LoaderArgs) {
   try {
     return {
       data: await loadReviewList(filters, params),
+      filters,
       params,
       error: null,
     };
   } catch (cause) {
-    return { data: null, params, error: readFailure("reviews", cause) };
+    return {
+      data: null,
+      filters,
+      params,
+      error: readFailure("reviews", cause),
+    };
   }
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const operator = await requireOperator(request);
-  const body = await request.json();
-  const intent = body.intent as string;
-  const reviewId = body.reviewId as string;
+  const body = await readBody(request);
+  const intent = String(body.intent ?? "");
+  const reviewId = typeof body.reviewId === "string" ? body.reviewId : "";
+  const note = readText(body.reason);
   const ip = clientIp(request);
 
   const r = await db.orm.public.SharedReview.where((x) => x.id.eq(reviewId))
@@ -86,6 +97,7 @@ export async function action({ request }: Route.ActionArgs) {
           entityId: reviewId,
           before: { status: r.status },
           after: { status: "hidden" },
+          note,
           ip,
         });
       });
@@ -120,6 +132,7 @@ export async function action({ request }: Route.ActionArgs) {
           entityId: reviewId,
           before: { status: r.status },
           after: { status: "flagged" },
+          note,
           ip,
         });
       });
@@ -137,6 +150,7 @@ export async function action({ request }: Route.ActionArgs) {
           entityId: reviewId,
           before: { text: r.text },
           after: { text: "[redacted by operator]" },
+          note,
           ip,
         });
       });
@@ -144,10 +158,11 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     case "delete-review": {
-      const confirmName = body.confirmName as string;
-      if (confirmName !== String(r.rating)) {
+      // The operator types the start of the review's id: unlike the rating,
+      // which four rows in five share, it names this one row.
+      if (body.confirmName !== reviewConfirmValue(r.id)) {
         return Response.json(
-          { error: "Rating does not match" },
+          { error: "Confirmation does not match" },
           { status: 400 },
         );
       }
@@ -174,8 +189,19 @@ export async function action({ request }: Route.ActionArgs) {
   }
 }
 
+/** What the delete dialog asks the operator to type. */
+function reviewConfirmValue(id: string): string {
+  return id.slice(0, 8);
+}
+
+const STATUS_TONE = {
+  visible: "good",
+  hidden: "neutral",
+  flagged: "warn",
+} as const;
+
 export default function Reviews({ loaderData }: Route.ComponentProps) {
-  const { data, error } = loaderData;
+  const { data, filters, error } = loaderData;
   const { operator } = useOutletContext<ConsoleContext>();
 
   return (
@@ -195,15 +221,31 @@ export default function Reviews({ loaderData }: Route.ComponentProps) {
               { id: "total", label: "Reviews", value: data.stats.total },
               { id: "avg", label: "Avg rating", value: data.stats.avgRating },
               { id: "ai", label: "AI copies", value: data.stats.totalAiCopies },
+              {
+                id: "moderated",
+                label: "Hidden or flagged",
+                value: data.stats.moderated,
+              },
             ]}
           />
 
-          <FilterBar active={false}>
+          <FilterBar active={Boolean(filters.q || filters.statuses.length)}>
             <SearchField
               name="q"
-              defaultValue=""
+              defaultValue={filters.q ?? ""}
               placeholder="Search review text..."
               label="Reviews"
+            />
+            <FilterSelect
+              name="statuses"
+              label="Status"
+              defaultValue={filters.statuses[0] ?? ""}
+              placeholder="All statuses"
+              options={[
+                { value: "visible", label: "Visible" },
+                { value: "hidden", label: "Hidden" },
+                { value: "flagged", label: "Flagged" },
+              ]}
             />
           </FilterBar>
 
@@ -218,6 +260,9 @@ export default function Reviews({ loaderData }: Route.ComponentProps) {
                   <th className="pb-2 font-medium">Status</th>
                   <th className="pb-2 font-medium">AI copies</th>
                   <th className="pb-2 font-medium">Created</th>
+                  <th className="pb-2 font-medium">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -232,20 +277,91 @@ export default function Reviews({ loaderData }: Route.ComponentProps) {
                       {r.businessName ?? "Unattached"}
                     </td>
                     <td className="py-2">
-                      <span
-                        className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                          r.status === "visible"
-                            ? "bg-green-50 text-green-700"
-                            : r.status === "hidden"
-                              ? "bg-gray-100 text-gray-600"
-                              : "bg-yellow-50 text-yellow-700"
-                        }`}
+                      <StatusBadge
+                        tone={
+                          STATUS_TONE[r.status as keyof typeof STATUS_TONE] ??
+                          "warn"
+                        }
                       >
                         {r.status}
-                      </span>
+                      </StatusBadge>
                     </td>
                     <td className="py-2">{r.analyticsAiCopyCount}</td>
                     <td className="py-2 text-gray-600">{r.created}</td>
+                    <td className="py-2 text-right">
+                      <ActionMenu
+                        label={`Actions for review ${reviewConfirmValue(r.id)}`}
+                        items={[
+                          {
+                            label: "Hide…",
+                            intent: "hide-review",
+                            payload: { reviewId: r.id },
+                            hidden: r.status === "hidden",
+                            dialog: {
+                              title: "Hide this review?",
+                              description:
+                                "Its public link and QR code stop working and it stops being counted. The author can still see it.",
+                              confirmLabel: "Hide review",
+                              text: { label: "Reason" },
+                            },
+                          },
+                          {
+                            label: "Flag…",
+                            intent: "flag-review",
+                            payload: { reviewId: r.id },
+                            hidden: r.status === "flagged",
+                            dialog: {
+                              title: "Flag this review?",
+                              description:
+                                "Flagged reviews come off public pages like hidden ones, and are marked for follow-up.",
+                              confirmLabel: "Flag review",
+                              text: { label: "What needs checking" },
+                            },
+                          },
+                          {
+                            label: "Restore",
+                            intent: "unhide-review",
+                            payload: { reviewId: r.id },
+                            hidden: r.status === "visible",
+                          },
+                          {
+                            label: "Redact text…",
+                            intent: "redact-text",
+                            payload: { reviewId: r.id },
+                            hidden: r.text === "[redacted by operator]",
+                            dialog: {
+                              title: "Redact the text of this review?",
+                              description:
+                                "The text is replaced with a redaction notice. The original is kept in the audit log only.",
+                              confirmLabel: "Redact",
+                              text: { label: "Reason" },
+                            },
+                          },
+                          {
+                            ...banUserItem(
+                              r.authorId,
+                              r.authorName,
+                              "Ban author…",
+                              r.authorBanned,
+                            ),
+                            hidden: !r.authorId || r.authorBanned,
+                          },
+                          {
+                            label: "Delete…",
+                            intent: "delete-review",
+                            payload: { reviewId: r.id },
+                            destructive: true,
+                            dialog: {
+                              title: "Delete this review?",
+                              description:
+                                "The review and its analytics are permanently deleted. Printed QR codes that point at it stop working.",
+                              confirmLabel: "Delete review",
+                              confirmValue: reviewConfirmValue(r.id),
+                            },
+                          },
+                        ]}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>

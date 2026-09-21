@@ -40,6 +40,10 @@
       "model": "Feedback",
       "namespace": "public"
     },
+    "feedback_reply": {
+      "model": "FeedbackReply",
+      "namespace": "public"
+    },
     "google_token": {
       "model": "GoogleToken",
       "namespace": "public"
@@ -740,6 +744,13 @@
                   "kind": "scalar"
                 }
               },
+              "marketplaceHidden": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
               "name": {
                 "nullable": false,
                 "type": {
@@ -817,6 +828,37 @@
                 "nullable": false,
                 "type": {
                   "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "status": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "suspendReason": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "suspendedAt": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "suspendedById": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
                   "kind": "scalar"
                 }
               },
@@ -1097,6 +1139,9 @@
                 "logo": {
                   "column": "logo"
                 },
+                "marketplaceHidden": {
+                  "column": "marketplaceHidden"
+                },
                 "name": {
                   "column": "name"
                 },
@@ -1129,6 +1174,18 @@
                 },
                 "slotDuration": {
                   "column": "slotDuration"
+                },
+                "status": {
+                  "column": "status"
+                },
+                "suspendReason": {
+                  "column": "suspendReason"
+                },
+                "suspendedAt": {
+                  "column": "suspendedAt"
+                },
+                "suspendedById": {
+                  "column": "suspendedById"
                 },
                 "timezone": {
                   "column": "timezone"
@@ -1445,6 +1502,21 @@
               }
             },
             "relations": {
+              "replies": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "feedbackId"
+                  ]
+                },
+                "to": {
+                  "model": "FeedbackReply",
+                  "namespace": "public"
+                }
+              },
               "user": {
                 "cardinality": "N:1",
                 "nullable": false,
@@ -1503,6 +1575,130 @@
               },
               "namespaceId": "public",
               "table": "feedback"
+            }
+          },
+          "FeedbackReply": {
+            "fields": {
+              "body": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "deliveryStatus": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "error": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "feedbackId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "operatorId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "operatorLabel": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "sentAt": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              }
+            },
+            "relations": {
+              "feedback": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "feedbackId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Feedback",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "body": {
+                  "column": "body"
+                },
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "deliveryStatus": {
+                  "column": "deliveryStatus"
+                },
+                "error": {
+                  "column": "error"
+                },
+                "feedbackId": {
+                  "column": "feedbackId"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "operatorId": {
+                  "column": "operatorId"
+                },
+                "operatorLabel": {
+                  "column": "operatorLabel"
+                },
+                "sentAt": {
+                  "column": "sentAt"
+                }
+              },
+              "namespaceId": "public",
+              "table": "feedback_reply"
             }
           },
           "GoogleToken": {
@@ -4349,6 +4545,15 @@
                   "nativeType": "text",
                   "nullable": true
                 },
+                "marketplaceHidden": {
+                  "codecId": "pg/bool@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "nativeType": "bool",
+                  "nullable": false
+                },
                 "name": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -4414,6 +4619,33 @@
                   },
                   "nativeType": "int4",
                   "nullable": false
+                },
+                "status": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "active"
+                  },
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "suspendReason": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "suspendedAt": {
+                  "codecId": "pg/timestamp-string@1",
+                  "nativeType": "timestamp",
+                  "nullable": true,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "suspendedById": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
                 },
                 "timezone": {
                   "codecId": "pg/text@1",
@@ -4505,6 +4737,14 @@
                     "sector"
                   ],
                   "name": "business_sector_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "status",
+                    "marketplaceHidden"
+                  ],
+                  "name": "business_status_marketplaceHidden_idx",
                   "unique": false
                 },
                 {
@@ -4833,6 +5073,115 @@
                   "id"
                 ],
                 "name": "feedback_pkey"
+              },
+              "uniques": []
+            },
+            "feedback_reply": {
+              "columns": {
+                "body": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "createdAt": {
+                  "codecId": "pg/timestamp-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamp",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "deliveryStatus": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "sent"
+                  },
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "error": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "feedbackId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "operatorId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "operatorLabel": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "sentAt": {
+                  "codecId": "pg/timestamp-string@1",
+                  "nativeType": "timestamp",
+                  "nullable": true,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "foreignKeys": [
+                {
+                  "name": "feedback_reply_feedbackId_fkey",
+                  "onDelete": "cascade",
+                  "onUpdate": "cascade",
+                  "source": {
+                    "columns": [
+                      "feedbackId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "feedback_reply"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "feedback"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "feedbackId",
+                    "createdAt"
+                  ],
+                  "name": "feedback_reply_feedbackId_createdAt_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "feedbackId"
+                  ],
+                  "name": "feedback_reply_feedbackId_idx_1ce420e7",
+                  "prefix": "feedback_reply_feedbackId_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ],
+                "name": "feedback_reply_pkey"
               },
               "uniques": []
             },
@@ -6558,7 +6907,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "5010099b83edcb784eb84c99dbaed26649d646c9ba07df8984a11b4560d04b48"
+    "storageHash": "895408996aa9262840867f5a9ea6f8f3e28f9c6ba783feadeac7059c6f90fa50"
   },
   "capabilities": {
     "postgres": {

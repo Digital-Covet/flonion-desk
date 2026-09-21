@@ -78,6 +78,18 @@ export function BusinessFilterBar({
         />
 
         <FilterSelect
+          name="moderation"
+          label="Moderation"
+          defaultValue={filters.moderation ?? ""}
+          placeholder="Any"
+          options={[
+            { value: "active", label: "Active & listed" },
+            { value: "suspended", label: "Suspended" },
+            { value: "hidden", label: "Hidden from marketplace" },
+          ]}
+        />
+
+        <FilterSelect
           name="createdWithin"
           label="Created"
           defaultValue={filters.createdWithinDays?.toString() ?? ""}

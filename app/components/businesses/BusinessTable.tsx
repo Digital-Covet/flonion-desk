@@ -1,9 +1,12 @@
 import { Link } from "react-router";
 import type { SortDir } from "../../prisma/paging";
 import { COLORS, FONT_BOLD, FONT_REGULAR, TEXT_MUTED_SM } from "../constants";
+import { ActionMenu } from "../shell/ActionMenu";
 import { type Column, DataTable } from "../shell/DataTable";
+import { StatusBadge } from "../shell/StatusBadge";
 import type { BusinessListRow } from "../types";
 import { Hint } from "../ui/Hint";
+import { businessActionItems } from "./businessActions";
 
 /**
  * The Businesses table.
@@ -155,10 +158,41 @@ export function BusinessTable({
       ),
     },
     {
+      id: "moderation",
+      label: "Status",
+      render: (b) => (
+        <div className="flex flex-wrap gap-1">
+          {b.status === "suspended" ? (
+            <StatusBadge tone="bad" title={b.suspendReason ?? undefined}>
+              Suspended
+            </StatusBadge>
+          ) : (
+            <StatusBadge tone="good">Active</StatusBadge>
+          )}
+          {b.marketplaceHidden ? (
+            <StatusBadge tone="neutral">Unlisted</StatusBadge>
+          ) : null}
+          {b.ownerBanned ? (
+            <StatusBadge tone="warn">Owner banned</StatusBadge>
+          ) : null}
+        </div>
+      ),
+    },
+    {
       id: "created",
       label: "Created",
       sortKey: "createdAt",
       render: (b) => <span className={TEXT_MUTED_SM}>{b.created}</span>,
+    },
+    {
+      id: "actions",
+      label: "",
+      render: (b) => (
+        <ActionMenu
+          label={`Actions for ${b.name}`}
+          items={businessActionItems(b)}
+        />
+      ),
     },
   ];
 

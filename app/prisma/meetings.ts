@@ -44,6 +44,9 @@ export interface MeetingRequestRow {
   slotTime: string;
   businessName: string;
   requesterName: string;
+  /** The signed-in member who asked, or null for a guest booking. */
+  requesterId: string | null;
+  requesterBanned: boolean;
   isGuest: boolean;
   status: string;
   hasMeetLink: boolean;
@@ -95,7 +98,7 @@ export async function loadMeetingList(
         )
         .include("slot", (s) => s.select("date", "startTime"))
         .include("business", (b) => b.select("name"))
-        .include("requester", (r) => r.select("name"))
+        .include("requester", (r) => r.select("id", "name", "banned"))
         .orderBy([(m) => m.createdAt.desc(), (m) => m.id.asc()])
         .offset(params.offset)
         .limit(params.size)
@@ -130,6 +133,8 @@ export async function loadMeetingList(
     slotTime: m.slot?.startTime ?? "Unknown",
     businessName: m.business?.name ?? "Unknown",
     requesterName: m.guestName ?? m.requester?.name ?? "Unknown",
+    requesterId: m.requester?.id ?? null,
+    requesterBanned: m.requester?.banned ?? false,
     isGuest: m.guestName !== null,
     status: m.status,
     hasMeetLink: m.meetUri !== null,

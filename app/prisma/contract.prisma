@@ -41,6 +41,11 @@ model Business {
   workingEndTime    String             @default("18:00")
   workingStartTime  String             @default("09:00")
   qrScanCount       Int                @default(0)
+  status            String             @default("active")
+  suspendReason     String?
+  suspendedById     String?
+  suspendedAt       TimestampString(3)?
+  marketplaceHidden Boolean            @default(false)
   availabilitySlots AvailabilitySlot[]
   businessContacts  BusinessContact[]
   favoritePartners  FavoritePartner[]
@@ -57,6 +62,7 @@ model Business {
 
   @@index([rating, createdAt], map: "business_rating_createdAt_idx")
   @@index([sector], map: "business_sector_idx")
+  @@index([status, marketplaceHidden], map: "business_status_marketplaceHidden_idx")
   @@unique([userId], map: "business_userId_key")
   @@index([username], map: "business_username_key", unique: true)
   @@map("business")
@@ -175,11 +181,28 @@ model Feedback {
   assignedTo   String?
   resolvedAt   TimestampString(3)?
   operatorNote String?
+  replies      FeedbackReply[]
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "feedback_userId_fkey")
 
   @@index([userId], map: "feedback_userId_idx")
   @@index([status, createdAt], map: "feedback_status_createdAt_idx")
   @@map("feedback")
+}
+
+model FeedbackReply {
+  id             String             @id(map: "feedback_reply_pkey")
+  feedbackId     String
+  operatorId     String
+  operatorLabel  String
+  body           String
+  deliveryStatus String             @default("sent")
+  error          String?
+  sentAt         TimestampString(3)?
+  createdAt      TimestampString(3) @default(now())
+  feedback       Feedback           @relation(fields: [feedbackId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "feedback_reply_feedbackId_fkey")
+
+  @@index([feedbackId, createdAt], map: "feedback_reply_feedbackId_createdAt_idx")
+  @@map("feedback_reply")
 }
 
 model GoogleToken {

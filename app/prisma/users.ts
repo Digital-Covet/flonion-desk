@@ -73,7 +73,9 @@ function filtered(f: UserFilters) {
   if (f.onboarded === "no") c = c.where((u) => u.onboardingCompleted.eq(false));
 
   if (f.banned === "yes") c = c.where((u) => u.banned.eq(true));
-  if (f.banned === "no") c = c.where((u) => u.banned.eq(false));
+  // The column is nullable with a false default; NULL means never banned.
+  if (f.banned === "no")
+    c = c.where((u) => or(u.banned.eq(false), u.banned.isNull()));
 
   if (f.createdWithinDays !== null) {
     const cutoff = daysAgo(f.createdWithinDays);
@@ -93,6 +95,9 @@ export interface UserListRow {
   twoFactorEnabled: boolean;
   onboarded: boolean;
   banned: boolean;
+  banReason: string | null;
+  /** Formatted date the ban lapses, or null when it is indefinite. */
+  banExpires: string | null;
   /** "Owner of X", "Member of Y", or "Unattached". */
   standing: string;
   sessionCount: number;
@@ -165,6 +170,8 @@ export async function loadUserList(
       twoFactorEnabled: u.twoFactorEnabled ?? false,
       onboarded: u.onboardingCompleted,
       banned: u.banned ?? false,
+      banReason: u.banReason,
+      banExpires: u.banExpires ? formatDate(u.banExpires) : null,
       standing,
       sessionCount: u.sessions,
       hasGoogleToken: u.googleToken !== null,

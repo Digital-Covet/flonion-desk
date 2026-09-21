@@ -1,3 +1,4 @@
+import { or } from "@prisma/orm-postgres/orm-client";
 import { matchBusinessToCategory } from "../components/data/categories";
 import { db } from "./db";
 import { daysAgo, formatDate } from "./time";
@@ -34,14 +35,30 @@ export interface PartnerReadinessRow {
   completeness: number;
 }
 
-export interface FavouriteRow {
+/** The moderation state every listed row carries, for its action menu. */
+export interface ListingModeration {
+  /** "active" or "suspended". */
+  status: string;
+  marketplaceHidden: boolean;
+}
+
+export interface FavouriteRow extends ListingModeration {
   id: string;
   name: string;
   logo: string | null;
   favouriteCount: number;
 }
 
-export interface NewArrivalRow {
+/** A business an operator has taken out of the marketplace, one way or the other. */
+export interface ModeratedListingRow extends ListingModeration {
+  id: string;
+  name: string;
+  username: string | null;
+  suspendReason: string | null;
+  updated: string;
+}
+
+export interface NewArrivalRow extends ListingModeration {
   id: string;
   name: string;
   username: string | null;
@@ -62,16 +79,23 @@ export interface MarketplaceData {
   favourites: FavouriteRow[];
   orphanedFavourites: number;
   newArrivals: NewArrivalRow[];
+  /** Most recently changed first, capped at `MODERATED_LIMIT`. */
+  moderated: ModeratedListingRow[];
   stats: {
     totalBusinesses: number;
     withUsername: number;
     avgCompleteness: number;
+    /** Businesses the partner search shows: active and not hidden. */
+    listed: number;
+    hidden: number;
+    suspended: number;
   };
 }
 
 const NEW_ARRIVAL_DAYS = 30;
 const PARTNER_READINESS_LIMIT = 20;
 const FAVOURITES_LIMIT = 10;
+const MODERATED_LIMIT = 50;
 
 /**
  * Businesses scored for partner readiness.
@@ -97,6 +121,10 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
     favouriteGroups,
     candidates,
     newArrivals,
+    listed,
+    hidden,
+    suspended,
+    moderated,
   ] = await Promise.all([
     all.aggregate((a) => ({ n: a.count() })),
 
@@ -155,10 +183,38 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
         "sector",
         "keywords",
         "createdAt",
+        "status",
+        "marketplaceHidden",
       )
       .include("user", (u) => u.select("name"))
       .orderBy((b) => b.createdAt.desc())
       .limit(10)
+      .all(),
+
+    // The same predicate the tenant app's partner search applies.
+    all
+      .where((b) => b.status.eq("active"))
+      .where((b) => b.marketplaceHidden.eq(false))
+      .aggregate((a) => ({ n: a.count() })),
+    all
+      .where((b) => b.marketplaceHidden.eq(true))
+      .aggregate((a) => ({ n: a.count() })),
+    all
+      .where((b) => b.status.eq("suspended"))
+      .aggregate((a) => ({ n: a.count() })),
+    all
+      .where((b) => or(b.marketplaceHidden.eq(true), b.status.eq("suspended")))
+      .select(
+        "id",
+        "name",
+        "username",
+        "status",
+        "suspendReason",
+        "marketplaceHidden",
+        "updatedAt",
+      )
+      .orderBy([(b) => b.updatedAt.desc(), (b) => b.id.asc()])
+      .limit(MODERATED_LIMIT)
       .all(),
   ]);
 
@@ -206,7 +262,7 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
       ? []
       : all
           .where((b) => b.id.in(leaderIds))
-          .select("id", "name", "logo")
+          .select("id", "name", "logo", "status", "marketplaceHidden")
           .all(),
     topIds.length === 0
       ? []
@@ -236,6 +292,8 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
       id: b.id,
       name: b.name,
       logo: b.logo,
+      status: b.status,
+      marketplaceHidden: b.marketplaceHidden,
       favouriteCount: group.n,
     });
   }
@@ -280,6 +338,8 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
     sector: b.sector,
     category: matchBusinessToCategory(b.sector, b.keywords),
     ownerName: b.user?.name ?? "Unknown",
+    status: b.status,
+    marketplaceHidden: b.marketplaceHidden,
     created: formatDate(b.createdAt),
   }));
 
@@ -289,10 +349,22 @@ export async function loadMarketplace(): Promise<MarketplaceData> {
     favourites,
     orphanedFavourites,
     newArrivals: newArrivalRows,
+    moderated: moderated.map((b) => ({
+      id: b.id,
+      name: b.name,
+      username: b.username,
+      status: b.status,
+      suspendReason: b.suspendReason,
+      marketplaceHidden: b.marketplaceHidden,
+      updated: formatDate(b.updatedAt),
+    })),
     stats: {
       totalBusinesses: total.n,
       withUsername: withUsername.n,
       avgCompleteness,
+      listed: listed.n,
+      hidden: hidden.n,
+      suspended: suspended.n,
     },
   };
 }

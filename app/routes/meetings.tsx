@@ -1,15 +1,19 @@
 import { Tabs } from "@base-ui/react/tabs";
 import { useOutletContext } from "react-router";
+import { ActionMenu } from "../components/shell/ActionMenu";
 import { FilterBar } from "../components/shell/FilterBar";
 import { PageHeader } from "../components/shell/PageHeader";
 import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
+import { type BadgeTone, StatusBadge } from "../components/shell/StatusBadge";
 import { FilterSelect } from "../components/ui/FilterSelect";
+import { banUserItem } from "../components/users/userActions";
 import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
 import { loadMeetingList, MEETING_SORT_KEYS } from "../prisma/meetings";
+import { readBody, readText } from "../prisma/moderation";
 import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { readPageParams, readWindowDays } from "../prisma/paging";
 import { toStamp } from "../prisma/time";
@@ -41,28 +45,35 @@ export async function loader({ request }: Route.LoaderArgs) {
   try {
     return {
       data: await loadMeetingList(filters, params),
+      filters,
       params,
       error: null,
     };
   } catch (cause) {
-    return { data: null, params, error: readFailure("meetings", cause) };
+    return {
+      data: null,
+      filters,
+      params,
+      error: readFailure("meetings", cause),
+    };
   }
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const operator = await requireOperator(request);
-  const body = await request.json();
-  const intent = body.intent as string;
-  const meetingId = body.meetingId as string;
+  const body = await readBody(request);
+  const intent = String(body.intent ?? "");
+  const meetingId = typeof body.meetingId === "string" ? body.meetingId : "";
+  const note = readText(body.reason);
   const ip = clientIp(request);
 
   const now = toStamp(Date.now());
 
   switch (intent) {
     case "set-meeting-status": {
-      const status = body.status as string;
-      const validStatuses = ["pending", "confirmed", "cancelled", "completed"];
-      if (!validStatuses.includes(status)) {
+      const status = String(body.status ?? "");
+      // The tenant app's lifecycle: see MeetingRequest.status in its schema.
+      if (!MEETING_STATUSES.includes(status)) {
         return Response.json({ error: "Invalid status" }, { status: 400 });
       }
 
@@ -79,9 +90,10 @@ export async function action({ request }: Route.ActionArgs) {
       }
 
       await db.transaction(async (tx) => {
-        // If cancelling, free the slot in the same transaction
+        // A cancelled or rejected request gives its slot back, in the same
+        // transaction, so the business can be booked for that time again.
         const slotId = mr.slotId;
-        if (status === "cancelled" && slotId) {
+        if ((status === "cancelled" || status === "rejected") && slotId) {
           await tx.orm.public.AvailabilitySlot.where((s) =>
             s.id.eq(slotId),
           ).update({ isBooked: false });
@@ -97,6 +109,7 @@ export async function action({ request }: Route.ActionArgs) {
           entityId: meetingId,
           before: { status: mr.status },
           after: { status },
+          note,
           ip,
         });
       });
@@ -123,7 +136,25 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     case "delete-meeting": {
+      const mr = await db.orm.public.MeetingRequest.where((x) =>
+        x.id.eq(meetingId),
+      )
+        .select("id", "status", "slotId")
+        .first();
+      if (!mr) {
+        return Response.json(
+          { error: "Meeting request not found" },
+          { status: 404 },
+        );
+      }
       await db.transaction(async (tx) => {
+        // Without its request, a booked slot would stay taken forever.
+        const slotId = mr.slotId;
+        if (slotId) {
+          await tx.orm.public.AvailabilitySlot.where((s) =>
+            s.id.eq(slotId),
+          ).update({ isBooked: false });
+        }
         await tx.orm.public.MeetingRequest.where((x) =>
           x.id.eq(meetingId),
         ).delete();
@@ -131,6 +162,8 @@ export async function action({ request }: Route.ActionArgs) {
           action: "meeting.delete",
           entity: "meeting_request",
           entityId: meetingId,
+          before: { status: mr.status },
+          note,
           ip,
         });
       });
@@ -138,6 +171,23 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     case "delete-team-meeting": {
+      const tm = await db.orm.public.TeamMeeting.where((x) =>
+        x.id.eq(meetingId),
+      )
+        .select("id", "title")
+        .first();
+      if (!tm) {
+        return Response.json(
+          { error: "Team meeting not found" },
+          { status: 404 },
+        );
+      }
+      if (body.confirmName !== tm.title) {
+        return Response.json(
+          { error: "Title does not match" },
+          { status: 400 },
+        );
+      }
       await db.transaction(async (tx) => {
         await tx.orm.public.TeamMeeting.where((x) =>
           x.id.eq(meetingId),
@@ -146,6 +196,8 @@ export async function action({ request }: Route.ActionArgs) {
           action: "team_meeting.delete",
           entity: "team_meeting",
           entityId: meetingId,
+          before: { title: tm.title },
+          note,
           ip,
         });
       });
@@ -160,8 +212,17 @@ export async function action({ request }: Route.ActionArgs) {
   }
 }
 
+const MEETING_STATUSES = ["pending", "accepted", "rejected", "cancelled"];
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  pending: "info",
+  accepted: "good",
+  rejected: "neutral",
+  cancelled: "neutral",
+};
+
 export default function Meetings({ loaderData }: Route.ComponentProps) {
-  const { data, error } = loaderData;
+  const { data, filters, error } = loaderData;
   const { operator } = useOutletContext<ConsoleContext>();
 
   return (
@@ -196,17 +257,17 @@ export default function Meetings({ loaderData }: Route.ComponentProps) {
             ]}
           />
 
-          <FilterBar active={false}>
+          <FilterBar active={filters.statuses.length > 0}>
             <FilterSelect
               name="statuses"
               label="Status"
-              defaultValue=""
+              defaultValue={filters.statuses[0] ?? ""}
               placeholder="All statuses"
               options={[
                 { value: "pending", label: "Pending" },
-                { value: "confirmed", label: "Confirmed" },
+                { value: "accepted", label: "Accepted" },
+                { value: "rejected", label: "Rejected" },
                 { value: "cancelled", label: "Cancelled" },
-                { value: "completed", label: "Completed" },
               ]}
             />
           </FilterBar>
@@ -241,6 +302,9 @@ export default function Meetings({ loaderData }: Route.ComponentProps) {
                       <th className="pb-2 font-medium">Status</th>
                       <th className="pb-2 font-medium">Meet</th>
                       <th className="pb-2 font-medium">Created</th>
+                      <th className="pb-2 font-medium">
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -261,9 +325,81 @@ export default function Meetings({ loaderData }: Route.ComponentProps) {
                             {r.isGuest ? "Guest" : "Member"}
                           </span>
                         </td>
-                        <td className="py-2">{r.status}</td>
+                        <td className="py-2">
+                          <StatusBadge tone={STATUS_TONE[r.status] ?? "warn"}>
+                            {r.status}
+                          </StatusBadge>
+                        </td>
                         <td className="py-2">{r.hasMeetLink ? "Yes" : "—"}</td>
                         <td className="py-2 text-gray-600">{r.created}</td>
+                        <td className="py-2 text-right">
+                          <ActionMenu
+                            label={`Actions for the request from ${r.requesterName}`}
+                            items={[
+                              {
+                                label: "Reject…",
+                                intent: "set-meeting-status",
+                                payload: {
+                                  meetingId: r.id,
+                                  status: "rejected",
+                                },
+                                hidden: r.status !== "pending",
+                                dialog: {
+                                  title: "Reject this meeting request?",
+                                  description:
+                                    "The request is marked rejected and its slot is freed. No email is sent to the requester.",
+                                  confirmLabel: "Reject request",
+                                  text: { label: "Reason" },
+                                },
+                              },
+                              {
+                                label: "Cancel…",
+                                intent: "set-meeting-status",
+                                payload: {
+                                  meetingId: r.id,
+                                  status: "cancelled",
+                                },
+                                hidden:
+                                  r.status === "cancelled" ||
+                                  r.status === "rejected",
+                                dialog: {
+                                  title: "Cancel this meeting?",
+                                  description:
+                                    "The meeting is marked cancelled and its slot is freed. No email is sent to either side.",
+                                  confirmLabel: "Cancel meeting",
+                                  text: { label: "Reason" },
+                                },
+                              },
+                              {
+                                label: "Clear Meet link",
+                                intent: "clear-meet-link",
+                                payload: { meetingId: r.id },
+                                hidden: !r.hasMeetLink,
+                              },
+                              {
+                                ...banUserItem(
+                                  r.requesterId ?? "",
+                                  r.requesterName,
+                                  "Ban requester…",
+                                  r.requesterBanned,
+                                ),
+                                hidden: !r.requesterId || r.requesterBanned,
+                              },
+                              {
+                                label: "Delete…",
+                                intent: "delete-meeting",
+                                payload: { meetingId: r.id },
+                                destructive: true,
+                                dialog: {
+                                  title: "Delete this meeting request?",
+                                  description:
+                                    "The request is permanently deleted and its slot is freed.",
+                                  confirmLabel: "Delete request",
+                                },
+                              },
+                            ]}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -286,6 +422,9 @@ export default function Meetings({ loaderData }: Route.ComponentProps) {
                         <th className="pb-2 font-medium">Time</th>
                         <th className="pb-2 font-medium">Location</th>
                         <th className="pb-2 font-medium">Meet</th>
+                        <th className="pb-2 font-medium">
+                          <span className="sr-only">Actions</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -300,6 +439,27 @@ export default function Meetings({ loaderData }: Route.ComponentProps) {
                           <td className="py-2 text-gray-600">{tm.location}</td>
                           <td className="py-2">
                             {tm.hasMeetLink ? "Yes" : "—"}
+                          </td>
+                          <td className="py-2 text-right">
+                            <ActionMenu
+                              label={`Actions for ${tm.title}`}
+                              items={[
+                                {
+                                  label: "Delete…",
+                                  intent: "delete-team-meeting",
+                                  payload: { meetingId: tm.id },
+                                  destructive: true,
+                                  dialog: {
+                                    title: `Delete "${tm.title}"?`,
+                                    description:
+                                      "The team meeting is permanently deleted from the business's calendar.",
+                                    confirmLabel: "Delete meeting",
+                                    confirmValue: tm.title,
+                                    text: { label: "Reason" },
+                                  },
+                                },
+                              ]}
+                            />
                           </td>
                         </tr>
                       ))}

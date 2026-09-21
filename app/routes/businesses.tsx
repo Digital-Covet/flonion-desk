@@ -12,7 +12,12 @@ import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
 import { loadBusinessList } from "../prisma/businesses";
 import { readFailure } from "../prisma/loader-error";
-import { requireOperatorRead } from "../prisma/operator";
+import {
+  BUSINESS_MODERATION_INTENTS,
+  handleBusinessModeration,
+  readBody,
+} from "../prisma/moderation";
+import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { readPageParams } from "../prisma/paging";
 import type { Route } from "./+types/businesses";
 import type { ConsoleContext } from "./console";
@@ -56,6 +61,23 @@ export async function loader({ request }: Route.LoaderArgs) {
       error: readFailure("businesses", cause),
     };
   }
+}
+
+/**
+ * Business moderation: suspend, lift, hide from or restore to the marketplace,
+ * and ban the owner. The detail page and Marketplace post here too, so there
+ * is one place that decides what each of those means.
+ */
+export async function action({ request }: Route.ActionArgs) {
+  const operator = await requireOperator(request);
+  const body = await readBody(request);
+  if (!BUSINESS_MODERATION_INTENTS.has(String(body.intent))) {
+    return Response.json(
+      { error: `Unknown intent: ${String(body.intent)}` },
+      { status: 400 },
+    );
+  }
+  return handleBusinessModeration(request, operator, body);
 }
 
 export default function Businesses({ loaderData }: Route.ComponentProps) {

@@ -151,6 +151,11 @@ export interface BusinessListRow {
   ownerName: string;
   ownerEmail: string;
   ownerOnboarded: boolean;
+  ownerBanned: boolean;
+  /** "active" or "suspended". */
+  status: string;
+  suspendReason: string | null;
+  marketplaceHidden: boolean;
   /** Pre-formatted on the server, so the two renders cannot disagree. */
   created: string;
 }
@@ -190,6 +195,14 @@ export interface BusinessDetailData {
   rating: number | null;
   reviewCount: number | null;
   qrScanCount: number;
+  moderation: {
+    /** "active" or "suspended". */
+    status: string;
+    suspendReason: string | null;
+    suspendedAt: string | null;
+    marketplaceHidden: boolean;
+    ownerBanned: boolean;
+  };
   created: string;
   updated: string;
   schedule: BusinessSchedule;

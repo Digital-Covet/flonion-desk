@@ -1,13 +1,23 @@
-import { useOutletContext } from "react-router";
+import { redirect, useOutletContext } from "react-router";
+import { ActionMenu } from "../components/shell/ActionMenu";
 import { FilterBar } from "../components/shell/FilterBar";
 import { PageHeader } from "../components/shell/PageHeader";
 import { Pagination } from "../components/shell/Pagination";
 import { SectionError } from "../components/shell/SectionError";
 import { StatRow } from "../components/shell/StatRow";
-import { SearchField } from "../components/ui/FilterSelect";
+import { StatusBadge } from "../components/shell/StatusBadge";
+import { FilterSelect, SearchField } from "../components/ui/FilterSelect";
+import { userActionItems } from "../components/users/userActions";
 import { clientIp, recordAudit } from "../prisma/audit";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
+import {
+  banExpiry,
+  banUser,
+  readBody,
+  readText,
+  unbanUser,
+} from "../prisma/moderation";
 import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { readPageParams, readWindowDays } from "../prisma/paging";
 import { toStamp } from "../prisma/time";
@@ -41,19 +51,25 @@ export async function loader({ request }: Route.LoaderArgs) {
   try {
     return {
       data: await loadUserList(filters, params),
+      filters,
       params,
       error: null,
     };
   } catch (cause) {
-    return { data: null, params, error: readFailure("users", cause) };
+    return { data: null, filters, params, error: readFailure("users", cause) };
   }
 }
 
+/**
+ * Every user mutation, including the ones started from other sections: "ban
+ * reviewer" on Reviews, "ban requester" on Meetings and the toolbar on a
+ * user's detail page all post here.
+ */
 export async function action({ request }: Route.ActionArgs) {
   const operator = await requireOperator(request);
-  const body = await request.json();
-  const intent = body.intent as string;
-  const userId = body.userId as string;
+  const body = await readBody(request);
+  const intent = String(body.intent ?? "");
+  const userId = typeof body.userId === "string" ? body.userId : "";
   const ip = clientIp(request);
 
   const u = await db.orm.public.User.where((x) => x.id.eq(userId))
@@ -142,44 +158,21 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     case "ban-user": {
-      const banReason =
-        typeof body.banReason === "string"
-          ? body.banReason.trim() || null
-          : null;
+      const expiresAt = banExpiry(body.duration);
+      if (expiresAt === undefined) {
+        return Response.json({ error: "Invalid ban length" }, { status: 400 });
+      }
+      // `banReason` is the older field name; the dialog sends `reason`.
+      const reason = readText(body.reason ?? body.banReason);
       await db.transaction(async (tx) => {
-        await tx.orm.public.User.where((x) => x.id.eq(userId)).update({
-          banned: true,
-          banReason,
-          updatedAt: now,
-        });
-        await recordAudit(tx, operator, {
-          action: "user.ban",
-          entity: "user",
-          entityId: userId,
-          before: { banned: u.banned },
-          after: { banned: true, banReason },
-          ip,
-        });
+        await banUser(tx, operator, u, { reason, expiresAt, ip });
       });
       return { ok: true };
     }
 
     case "unban-user": {
       await db.transaction(async (tx) => {
-        await tx.orm.public.User.where((x) => x.id.eq(userId)).update({
-          banned: false,
-          banReason: null,
-          banExpires: null,
-          updatedAt: now,
-        });
-        await recordAudit(tx, operator, {
-          action: "user.unban",
-          entity: "user",
-          entityId: userId,
-          before: { banned: u.banned },
-          after: { banned: false },
-          ip,
-        });
+        await unbanUser(tx, operator, u, ip);
       });
       return { ok: true };
     }
@@ -199,7 +192,7 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     case "delete-user": {
-      const confirmEmail = body.confirmEmail as string;
+      const confirmEmail = body.confirmEmail ?? body.confirmName;
       if (confirmEmail !== u.email) {
         return Response.json(
           { error: "Email does not match" },
@@ -217,7 +210,9 @@ export async function action({ request }: Route.ActionArgs) {
           ip,
         });
       });
-      return { ok: true, redirect: "/users" };
+      // A real redirect, not a hint in the JSON: the page that ran this is
+      // about to lose its row, and a fetcher follows a redirect as navigation.
+      return redirect("/users");
     }
 
     default:
@@ -229,7 +224,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Users({ loaderData }: Route.ComponentProps) {
-  const { data, error } = loaderData;
+  const { data, filters, error } = loaderData;
   const { operator } = useOutletContext<ConsoleContext>();
 
   return (
@@ -252,12 +247,22 @@ export default function Users({ loaderData }: Route.ComponentProps) {
             ]}
           />
 
-          <FilterBar active={false}>
+          <FilterBar active={Boolean(filters.q || filters.banned)}>
             <SearchField
               name="q"
-              defaultValue=""
+              defaultValue={filters.q ?? ""}
               placeholder="Search name or email..."
               label="Users"
+            />
+            <FilterSelect
+              name="banned"
+              label="Standing"
+              defaultValue={filters.banned ?? ""}
+              placeholder="Everyone"
+              options={[
+                { value: "yes", label: "Banned" },
+                { value: "no", label: "Not banned" },
+              ]}
             />
           </FilterBar>
 
@@ -273,6 +278,9 @@ export default function Users({ loaderData }: Route.ComponentProps) {
                   <th className="pb-2 font-medium">2FA</th>
                   <th className="pb-2 font-medium">Banned</th>
                   <th className="pb-2 font-medium">Created</th>
+                  <th className="pb-2 font-medium">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -295,12 +303,23 @@ export default function Users({ loaderData }: Route.ComponentProps) {
                     </td>
                     <td className="py-2">
                       {u.banned ? (
-                        <span className="text-red-600 font-medium">Banned</span>
+                        <StatusBadge
+                          tone="bad"
+                          title={u.banReason ?? undefined}
+                        >
+                          {u.banExpires ? `Until ${u.banExpires}` : "Banned"}
+                        </StatusBadge>
                       ) : (
                         "No"
                       )}
                     </td>
                     <td className="py-2 text-gray-600">{u.created}</td>
+                    <td className="py-2 text-right">
+                      <ActionMenu
+                        label={`Actions for ${u.name}`}
+                        items={userActionItems(u)}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>

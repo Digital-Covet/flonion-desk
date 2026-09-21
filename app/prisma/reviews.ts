@@ -56,7 +56,9 @@ export interface ReviewListRow {
   text: string;
   reviewerName: string | null;
   keywords: string | null;
+  authorId: string;
   authorName: string;
+  authorBanned: boolean;
   businessName: string | null;
   status: string;
   analyticsVisitCount: number;
@@ -73,6 +75,8 @@ export interface ReviewListData {
     total: number;
     avgRating: number;
     totalAiCopies: number;
+    /** Hidden or flagged by an operator: no longer served publicly. */
+    moderated: number;
     ratingDistribution: Record<number, number>;
   };
 }
@@ -84,50 +88,60 @@ export async function loadReviewList(
   const c = filtered(filters);
   const all = db.orm.public.SharedReview;
 
-  const [rows, matching, totalAgg, ratingSum, aiCopies, distribution] =
-    await Promise.all([
-      c
-        .select(
-          "id",
-          "rating",
-          "text",
-          "reviewerName",
-          "keywords",
-          "status",
-          "createdAt",
-        )
-        .include("user", (u) => u.select("name"))
-        .include("business", (b) => b.select("name"))
-        .include("reviewAnalytics", (a) =>
-          a.select(
-            "visitCount",
-            "reviewCount",
-            "qrScanCount",
-            "redirectCount",
-            "aiCopyCount",
-          ),
-        )
-        .orderBy([
-          (r) => {
-            const field = params.sort === "rating" ? r.rating : r.createdAt;
-            return params.dir === "asc" ? field.asc() : field.desc();
-          },
-          (r) => r.id.asc(),
-        ])
-        .offset(params.offset)
-        .limit(params.size)
-        .all(),
+  const [
+    rows,
+    matching,
+    totalAgg,
+    ratingSum,
+    aiCopies,
+    distribution,
+    moderated,
+  ] = await Promise.all([
+    c
+      .select(
+        "id",
+        "rating",
+        "text",
+        "reviewerName",
+        "keywords",
+        "status",
+        "createdAt",
+      )
+      .include("user", (u) => u.select("id", "name", "banned"))
+      .include("business", (b) => b.select("name"))
+      .include("reviewAnalytics", (a) =>
+        a.select(
+          "visitCount",
+          "reviewCount",
+          "qrScanCount",
+          "redirectCount",
+          "aiCopyCount",
+        ),
+      )
+      .orderBy([
+        (r) => {
+          const field = params.sort === "rating" ? r.rating : r.createdAt;
+          return params.dir === "asc" ? field.asc() : field.desc();
+        },
+        (r) => r.id.asc(),
+      ])
+      .offset(params.offset)
+      .limit(params.size)
+      .all(),
 
-      c.aggregate((a) => ({ n: a.count() })),
-      all.aggregate((a) => ({ n: a.count() })),
-      all.aggregate((a) => ({ n: a.sum("rating") })),
-      // Summed in the database, platform-wide like the other two stats, rather
-      // than fetching one analytics row per matching review.
-      db.orm.public.ReviewAnalytics.aggregate((a) => ({
-        n: a.sum("aiCopyCount"),
-      })),
-      all.groupBy("rating").aggregate((a) => ({ n: a.count() })),
-    ]);
+    c.aggregate((a) => ({ n: a.count() })),
+    all.aggregate((a) => ({ n: a.count() })),
+    all.aggregate((a) => ({ n: a.sum("rating") })),
+    // Summed in the database, platform-wide like the other two stats, rather
+    // than fetching one analytics row per matching review.
+    db.orm.public.ReviewAnalytics.aggregate((a) => ({
+      n: a.sum("aiCopyCount"),
+    })),
+    all.groupBy("rating").aggregate((a) => ({ n: a.count() })),
+    all
+      .where((r) => r.status.neq("visible"))
+      .aggregate((a) => ({ n: a.count() })),
+  ]);
 
   const listRows: ReviewListRow[] = rows.map((r) => ({
     id: r.id,
@@ -135,7 +149,9 @@ export async function loadReviewList(
     text: r.text,
     reviewerName: r.reviewerName,
     keywords: r.keywords,
+    authorId: r.user?.id ?? "",
     authorName: r.user?.name ?? "Unknown",
+    authorBanned: r.user?.banned ?? false,
     businessName: r.business?.name ?? null,
     status: r.status,
     analyticsVisitCount: r.reviewAnalytics?.visitCount ?? 0,
@@ -158,6 +174,7 @@ export async function loadReviewList(
       avgRating:
         totalAgg.n > 0 ? Math.round((ratingSum.n ?? 0) / totalAgg.n) : 0,
       totalAiCopies: aiCopies.n ?? 0,
+      moderated: moderated.n,
       ratingDistribution: dist,
     },
   };
