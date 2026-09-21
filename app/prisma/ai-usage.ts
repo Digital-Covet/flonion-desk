@@ -1,3 +1,4 @@
+import { UNATTRIBUTED } from "../components/data/aiUsage";
 import { db } from "./db";
 import { type PageParams, type PageResult, pageResult } from "./paging";
 import { daysAgo, formatDate } from "./time";
@@ -37,7 +38,12 @@ function filtered(f: AiUsageFilters) {
   if (f.ok === "yes") c = c.where((u) => u.ok.eq(true));
   if (f.ok === "no") c = c.where((u) => u.ok.eq(false));
   if (f.userId) c = c.where((u) => u.userId.eq(f.userId));
-  if (f.businessId) c = c.where((u) => u.businessId.eq(f.businessId));
+  if (f.businessId === UNATTRIBUTED) {
+    c = c.where((u) => u.businessId.isNull());
+  } else if (f.businessId) {
+    const v = f.businessId;
+    c = c.where((u) => u.businessId.eq(v));
+  }
 
   if (f.createdWithinDays !== null) {
     const cutoff = daysAgo(f.createdWithinDays);
@@ -59,12 +65,28 @@ export interface AiUsageRow {
   ok: boolean;
   errorKind: string | null;
   userName: string | null;
+  businessId: string | null;
   businessName: string | null;
   created: string;
 }
 
+/** One business's share of the calls matching the current filters. */
+export interface AiUsageBusinessRow {
+  /** Null for calls the ledger could not attribute to a business. */
+  businessId: string | null;
+  businessName: string | null;
+  calls: number;
+  failed: number;
+  promptTokens: number;
+  completionTokens: number;
+  costUsd: number;
+  /** Percentage of the filtered cost, 0–100. */
+  costShare: number;
+}
+
 export interface AiUsageData {
   page: PageResult<AiUsageRow>;
+  byBusiness: AiUsageBusinessRow[];
   stats: {
     total: number;
     successRate: number;
@@ -145,7 +167,82 @@ export async function loadAiUsageList(
       .all();
     return row?.latencyMs ?? 0;
   };
-  const [p50, p95] = await Promise.all([latencyAt(0.5), latencyAt(0.95)]);
+  // The breakdown ignores the business filter so it stays a way to move
+  // between businesses; every other filter (endpoint, model, window) applies.
+  const scoped = filtered({ ...filters, businessId: null });
+
+  const [[p50, p95], groups, failedGroups] = await Promise.all([
+    Promise.all([latencyAt(0.5), latencyAt(0.95)]),
+    // One row per business, so the grouped result is bounded by tenant count
+    // and sorting it in JS is cheap.
+    scoped.groupBy("businessId").aggregate((a) => ({
+      calls: a.count(),
+      promptTokens: a.sum("promptTokens"),
+      completionTokens: a.sum("completionTokens"),
+      costUsd: a.sum("costUsd"),
+    })),
+    scoped
+      .where((u) => u.ok.eq(false))
+      .groupBy("businessId")
+      .aggregate((a) => ({ n: a.count() })),
+  ]);
+
+  const businessIds = [
+    ...new Set(
+      [
+        ...groups.map((g) => g.businessId),
+        ...rows.map((r) => r.businessId),
+      ].filter((id): id is string => id !== null),
+    ),
+  ];
+  const userIds = [
+    ...new Set(rows.map((r) => r.userId).filter((id): id is string => !!id)),
+  ];
+
+  const [businesses, users] = await Promise.all([
+    businessIds.length === 0
+      ? []
+      : db.orm.public.Business.where((b) => b.id.in(businessIds))
+          .select("id", "name")
+          .all(),
+    userIds.length === 0
+      ? []
+      : db.orm.public.User.where((u) => u.id.in(userIds))
+          .select("id", "name")
+          .all(),
+  ]);
+  const businessName = new Map(businesses.map((b) => [b.id, b.name]));
+  const userName = new Map(users.map((u) => [u.id, u.name]));
+  const failedBy = new Map(failedGroups.map((g) => [g.businessId, g.n]));
+
+  const scopedCost = groups.reduce((s, g) => s + Number(g.costUsd ?? 0), 0);
+  const byBusiness: AiUsageBusinessRow[] = groups
+    .map((g) => {
+      const cost = Number(g.costUsd ?? 0);
+      return {
+        businessId: g.businessId,
+        // A ledger row outlives a deleted business, so a missing name is
+        // shown as such rather than dropped from the totals.
+        businessName:
+          g.businessId === null
+            ? null
+            : (businessName.get(g.businessId) ?? "Deleted business"),
+        calls: g.calls,
+        failed: failedBy.get(g.businessId) ?? 0,
+        promptTokens: g.promptTokens ?? 0,
+        completionTokens: g.completionTokens ?? 0,
+        costUsd: cost,
+        costShare: scopedCost > 0 ? (cost / scopedCost) * 100 : 0,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.costUsd - a.costUsd ||
+        b.promptTokens +
+          b.completionTokens -
+          (a.promptTokens + a.completionTokens) ||
+        b.calls - a.calls,
+    );
 
   const listRows: AiUsageRow[] = rows.map((r) => ({
     id: r.id,
@@ -158,13 +255,17 @@ export async function loadAiUsageList(
     latencyMs: r.latencyMs,
     ok: r.ok,
     errorKind: r.errorKind,
-    userName: null,
-    businessName: null,
+    userName: r.userId ? (userName.get(r.userId) ?? null) : null,
+    businessId: r.businessId,
+    businessName: r.businessId
+      ? (businessName.get(r.businessId) ?? "Deleted business")
+      : null,
     created: formatDate(r.createdAt),
   }));
 
   return {
     page: pageResult(listRows, matching.n, params),
+    byBusiness,
     stats: {
       total: totalAgg.n,
       successRate:
