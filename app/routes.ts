@@ -20,9 +20,13 @@ import {
  */
 export default [
   route("api/auth/*", "routes/api.auth.$.ts"),
-  route("api/auth/front-channel-logout", "routes/api.auth.front-channel-logout.ts"),
+  route(
+    "api/auth/front-channel-logout",
+    "routes/api.auth.front-channel-logout.ts",
+  ),
   route("login", "routes/login.tsx"),
   route("impersonate", "routes/impersonate.tsx"),
+  route("support/:id/thread", "routes/support-thread.ts"),
   layout("routes/console.tsx", [
     index("routes/home.tsx"),
     route("businesses", "routes/businesses.tsx"),

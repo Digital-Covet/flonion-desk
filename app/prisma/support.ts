@@ -63,6 +63,7 @@ export interface SupportRow {
   status: string;
   assignedTo: string | null;
   operatorNote: string | null;
+  replyCount: number;
   created: string;
 }
 
@@ -98,6 +99,7 @@ export async function loadSupportList(
           "operatorNote",
           "createdAt",
         )
+        .include("replies", (r) => r.count())
         .orderBy([(fb) => fb.createdAt.desc(), (fb) => fb.id.asc()])
         .offset(params.offset)
         .limit(params.size)
@@ -126,6 +128,7 @@ export async function loadSupportList(
     status: fb.status,
     assignedTo: fb.assignedTo,
     operatorNote: fb.operatorNote,
+    replyCount: fb.replies,
     created: formatDate(fb.createdAt),
   }));
 
@@ -137,5 +140,77 @@ export async function loadSupportList(
       openCount: openCount.n,
       resolvedCount: resolvedCount.n,
     },
+  };
+}
+
+export interface FeedbackReplyRow {
+  id: string;
+  operatorLabel: string;
+  body: string;
+  /** "sent" or "failed". */
+  deliveryStatus: string;
+  error: string | null;
+  created: string;
+}
+
+export interface FeedbackThread {
+  id: string;
+  name: string;
+  email: string;
+  category: string;
+  rating: number;
+  message: string;
+  status: string;
+  created: string;
+  replies: FeedbackReplyRow[];
+}
+
+/** One feedback item and every reply sent to it, oldest reply first. */
+export async function loadFeedbackThread(
+  id: string,
+): Promise<FeedbackThread | null> {
+  const fb = await db.orm.public.Feedback.where((x) => x.id.eq(id))
+    .select(
+      "id",
+      "name",
+      "email",
+      "category",
+      "rating",
+      "message",
+      "status",
+      "createdAt",
+    )
+    .include("replies", (r) =>
+      r
+        .select(
+          "id",
+          "operatorLabel",
+          "body",
+          "deliveryStatus",
+          "error",
+          "createdAt",
+        )
+        .orderBy((x) => x.createdAt.asc()),
+    )
+    .first();
+  if (!fb) return null;
+
+  return {
+    id: fb.id,
+    name: fb.name,
+    email: fb.email,
+    category: fb.category,
+    rating: fb.rating,
+    message: fb.message,
+    status: fb.status,
+    created: formatDate(fb.createdAt),
+    replies: fb.replies.map((r) => ({
+      id: r.id,
+      operatorLabel: r.operatorLabel,
+      body: r.body,
+      deliveryStatus: r.deliveryStatus,
+      error: r.error,
+      created: formatDate(r.createdAt),
+    })),
   };
 }
