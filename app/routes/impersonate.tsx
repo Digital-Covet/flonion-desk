@@ -22,8 +22,24 @@ import type { Route } from "./+types/impersonate";
 export async function action({ request }: Route.ActionArgs) {
   const operator = await requireOperator(request);
 
-  const body = await request.json();
-  const userId = body.userId;
+  // Only the desk's own pages may start a handoff. A same-site page (another
+  // *.flonion.com host) still carries the Lax session cookie, and a
+  // `text/plain` form can carry a JSON body, so both are checked here.
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite !== null && fetchSite !== "same-origin") {
+    return Response.json({ error: "Cross-origin request" }, { status: 403 });
+  }
+  if (!request.headers.get("content-type")?.includes("application/json")) {
+    return Response.json(
+      { error: "Expected application/json" },
+      { status: 415 },
+    );
+  }
+  const body: unknown = await request.json().catch(() => null);
+  const userId =
+    body && typeof body === "object" && "userId" in body
+      ? body.userId
+      : undefined;
   if (typeof userId !== "string" || !userId) {
     return Response.json({ error: "Missing userId" }, { status: 400 });
   }

@@ -89,8 +89,26 @@ export async function action({ request }: Route.ActionArgs) {
           { status: 404 },
         );
       }
+      // Cancelled and rejected are final: the slot was given back when the
+      // request reached them, so reopening one would leave a live meeting on
+      // a slot marked free.
+      if (!MEETING_TRANSITIONS[mr.status]?.includes(status)) {
+        return Response.json(
+          { error: `Cannot move a ${mr.status} meeting to ${status}` },
+          { status: 409 },
+        );
+      }
 
-      await db.transaction(async (tx) => {
+      const moved = await db.transaction(async (tx) => {
+        // Conditional on the status just read, so two operators acting on the
+        // same request cannot both pass the transition check.
+        const updated = await tx.orm.public.MeetingRequest.where((x) =>
+          x.id.eq(meetingId),
+        )
+          .where((x) => x.status.eq(mr.status))
+          .updateAndCount({ status, updatedAt: now });
+        if (updated === 0) return false;
+
         // A cancelled or rejected request gives its slot back, in the same
         // transaction, so the business can be booked for that time again.
         const slotId = mr.slotId;
@@ -99,10 +117,6 @@ export async function action({ request }: Route.ActionArgs) {
             s.id.eq(slotId),
           ).update({ isBooked: false });
         }
-
-        await tx.orm.public.MeetingRequest.where((x) =>
-          x.id.eq(meetingId),
-        ).update({ status, updatedAt: now });
 
         await recordAudit(tx, operator, {
           action: "meeting.set_status",
@@ -113,7 +127,14 @@ export async function action({ request }: Route.ActionArgs) {
           note,
           ip,
         });
+        return true;
       });
+      if (!moved) {
+        return Response.json(
+          { error: "The meeting changed meanwhile; reload and try again" },
+          { status: 409 },
+        );
+      }
 
       return { ok: true };
     }
@@ -214,6 +235,14 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 const MEETING_STATUSES = ["pending", "accepted", "rejected", "cancelled"];
+
+/** Which status each status may move to. Cancelled and rejected are final. */
+const MEETING_TRANSITIONS: Record<string, string[]> = {
+  pending: ["accepted", "rejected", "cancelled"],
+  accepted: ["cancelled"],
+  rejected: [],
+  cancelled: [],
+};
 
 export default function Meetings({ loaderData }: Route.ComponentProps) {
   const { data, filters, params, error } = loaderData;

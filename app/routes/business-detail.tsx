@@ -9,7 +9,7 @@ import { clientIp, recordAudit } from "../prisma/audit";
 import { loadBusinessDetail } from "../prisma/businesses";
 import { db } from "../prisma/db";
 import { readFailure } from "../prisma/loader-error";
-import { readBody } from "../prisma/moderation";
+import { readBody, readText } from "../prisma/moderation";
 import { requireOperator, requireOperatorRead } from "../prisma/operator";
 import { toStamp } from "../prisma/time";
 import type { Route } from "./+types/business-detail";
@@ -68,23 +68,19 @@ export async function action({ request }: Route.ActionArgs) {
 
   switch (intent) {
     case "edit-business": {
-      const name = typeof body.name === "string" ? body.name.trim() : b.name;
-      const sector =
-        typeof body.sector === "string" ? body.sector.trim() || null : b.sector;
-      const keywords =
-        typeof body.keywords === "string"
-          ? body.keywords.trim() || null
-          : b.keywords;
-      const description =
-        typeof body.description === "string"
-          ? body.description.trim() || null
-          : b.description;
-      const phone =
-        typeof body.phone === "string" ? body.phone.trim() || null : b.phone;
-      const address =
-        typeof body.address === "string"
-          ? body.address.trim() || null
-          : b.address;
+      // An absent field keeps its value; a present one is trimmed and capped,
+      // and blank clears it. The name is the one field that cannot be blank.
+      const field = (key: string, max: number, current: string | null) =>
+        typeof body[key] === "string" ? readText(body[key], max) : current;
+      const name = field("name", 200, b.name);
+      if (!name) {
+        return Response.json({ error: "Name is required" }, { status: 400 });
+      }
+      const sector = field("sector", 100, b.sector);
+      const keywords = field("keywords", 500, b.keywords);
+      const description = field("description", 2000, b.description);
+      const phone = field("phone", 50, b.phone);
+      const address = field("address", 500, b.address);
 
       await db.transaction(async (tx) => {
         await tx.orm.public.Business.where((x) => x.id.eq(businessId)).update({
