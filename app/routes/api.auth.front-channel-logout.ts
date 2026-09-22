@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { DESK_PROVIDER_ID } from "../lib/auth";
 import { db } from "../prisma/db";
 
 /**
@@ -161,10 +162,14 @@ export async function loader({ request }: { request: Request }) {
 
   try {
     // `sub` is the IAM user id. Better-auth stores it as `accountId` in the
-    // `account` table, whose `userId` is the local id to revoke.
+    // `account` table, whose `userId` is the local id to revoke. The table is
+    // shared with the tenant app, where `accountId` holds other providers'
+    // subjects, so only the desk's own provider is matched.
     const accounts = await db.orm.public.Account.where((a) =>
       a.accountId.eq(sub),
-    ).all();
+    )
+      .where((a) => a.providerId.eq(DESK_PROVIDER_ID))
+      .all();
 
     const revocations = accounts.map(async (account) => {
       await db.orm.public.Session.where((s) =>

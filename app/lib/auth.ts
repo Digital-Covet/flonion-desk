@@ -1,6 +1,9 @@
 import { betterAuth } from "better-auth";
 import { genericOAuth } from "better-auth/plugins";
-import { Pool } from "pg";
+import { pool } from "../prisma/pool";
+
+/** The IAM provider id; its `account` rows hold the operator's IAM subject. */
+export const DESK_PROVIDER_ID = "desk";
 
 /**
  * better-auth for the operator sign-in flow.
@@ -29,23 +32,14 @@ function createAuth() {
   const iamBaseUrl =
     process.env.IAM_BASE_URL?.replace(/\/$/, "") ||
     "https://iam.digitalcovet.com";
-  const databaseUrl = required("DATABASE_URL");
-  // Per-process pg pool passed directly as better-auth `database`
-  // (supported pattern per better-auth Postgres adapter docs). The desk
-  // otherwise uses Prisma Next (`app/prisma/db.ts`); better-auth needs a
-  // persistent store for Session/Account/Verification rows, without which
-  // `getSession()` is always null and every `/` load bounces to /login.
-  // Tables (`user`, `session`, `account`, `verification` via @@map) already
-  // match better-auth's expected schema, so pool writes stay compatible
-  // with the Prisma Next reads in `front-channel-logout.ts` / `operator.ts`.
-  const pool = new Pool({
-    connectionString: databaseUrl,
-    max: 5,
-    // Neon pooler URLs carry sslmode; pg needs explicit TLS in serverless.
-    ssl: databaseUrl.includes("sslmode=")
-      ? { rejectUnauthorized: false }
-      : undefined,
-  });
+  // The pg pool Prisma Next also uses (`app/prisma/pool.ts`), passed directly
+  // as better-auth `database` (supported pattern per better-auth Postgres
+  // adapter docs). better-auth needs a persistent store for
+  // Session/Account/Verification rows, without which `getSession()` is always
+  // null and every `/` load bounces to /login. Tables (`user`, `session`,
+  // `account`, `verification` via @@map) already match better-auth's expected
+  // schema, so pool writes stay compatible with the Prisma Next reads in
+  // `front-channel-logout.ts` / `operator.ts`.
   return betterAuth({
     baseURL: required("BETTER_AUTH_URL"),
     secret: required("BETTER_AUTH_SECRET"),
@@ -54,6 +48,17 @@ function createAuth() {
     session: {
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
+      // A signed cookie spares most requests the `session ⋈ user` round trip
+      // in front of every loader. The cost: a ban, "revoke all sessions" or an
+      // IAM front-channel logout takes up to `maxAge` seconds to lock an
+      // operator out. Keep it short for an admin console.
+      cookieCache: { enabled: true, maxAge: 60 },
+    },
+    account: {
+      // These are the tenant app's own `user`/`account` tables. With linking
+      // on, a desk sign-in whose verified email matches a Flonion customer
+      // would attach to that customer's row; refuse instead.
+      accountLinking: { enabled: false },
     },
     advanced: {
       useSecureCookies: process.env.NODE_ENV === "production",
@@ -62,7 +67,7 @@ function createAuth() {
       genericOAuth({
         config: [
           {
-            providerId: "desk",
+            providerId: DESK_PROVIDER_ID,
             clientId: required("OAUTH_CLIENT_ID_DESK"),
             clientSecret: required("OAUTH_CLIENT_SECRET_DESK"),
             authorizationUrl: `${iamBaseUrl}/api/auth/oauth2/authorize`,
@@ -117,7 +122,18 @@ function createAuth() {
                 });
                 return null;
               }
-              return (await res.json()) as any;
+              const profile = (await res.json()) as any;
+              // Who may use the Desk is decided in the IAM (an admin role, or
+              // "Desk" in the user's app access), which already refuses to
+              // issue a code otherwise. Checked again here so a missing or
+              // stripped claim fails closed, before better-auth creates a
+              // `user` row in the tenant's table.
+              const access: unknown = profile?.app_access;
+              if (!Array.isArray(access) || !access.includes("Desk")) {
+                console.warn("[Desk] sign-in refused: no Desk access");
+                return null;
+              }
+              return profile;
             },
           },
         ],
