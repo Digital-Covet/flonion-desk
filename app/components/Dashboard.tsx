@@ -1,4 +1,5 @@
 import { TriangleAlert } from "lucide-react";
+import { lazy, Suspense, useSyncExternalStore } from "react";
 import {
   CARD,
   COLORS,
@@ -9,14 +10,44 @@ import {
 import { ActivityFeed } from "./dashboard/ActivityFeed";
 import { PlatformHealthCard } from "./dashboard/PlatformHealthCard";
 import { RecentBusinessesTable } from "./dashboard/RecentBusinessesTable";
-import { ReviewsChart } from "./dashboard/ReviewsChart";
 import { ShortcutsCard } from "./dashboard/ShortcutsCard";
-import { SignupsChart } from "./dashboard/SignupsChart";
 import { StatCard } from "./dashboard/StatCard";
 import { mainNavLinks } from "./data/navLinks";
 import { statTiles } from "./data/statTiles";
 import { PageHeader } from "./shell/PageHeader";
 import type { OverviewData } from "./types";
+
+// Recharts is loaded in the browser only. The charts sit in a
+// `ResponsiveContainer`, which needs a measured width, so server HTML gained
+// nothing from them, while importing Recharts added ~200 ms to every cold
+// start (React Router's server build loads every route module up front).
+const SignupsChart = lazy(() =>
+  import("./dashboard/SignupsChart").then((m) => ({ default: m.SignupsChart })),
+);
+const ReviewsChart = lazy(() =>
+  import("./dashboard/ReviewsChart").then((m) => ({ default: m.ReviewsChart })),
+);
+
+const subscribeNothing = () => () => {};
+
+/** False during SSR and hydration, true once mounted in the browser. */
+function useHydrated() {
+  return useSyncExternalStore(
+    subscribeNothing,
+    () => true,
+    () => false,
+  );
+}
+
+function ChartPlaceholder({ width }: { width?: number }) {
+  return (
+    <div
+      aria-hidden
+      className={`${width ? "flex-none" : "flex-1 min-w-0"} ${CARD} min-h-[320px] animate-pulse`}
+      style={width ? { width } : undefined}
+    />
+  );
+}
 
 type DashboardProps = {
   data: OverviewData | null;
@@ -32,6 +63,7 @@ type DashboardProps = {
  * keep the layout intact.
  */
 export default function Dashboard({ data, error, operator }: DashboardProps) {
+  const hydrated = useHydrated();
   return (
     <div className="flex-1 overflow-auto p-6 min-w-0">
       <PageHeader title="Overview" operator={operator} showSearch />
@@ -69,8 +101,21 @@ export default function Dashboard({ data, error, operator }: DashboardProps) {
 
           {/* Charts */}
           <div className="flex gap-4 mb-6">
-            <SignupsChart series={data.signups} />
-            <ReviewsChart series={data.reviews} />
+            {hydrated ? (
+              <>
+                <Suspense fallback={<ChartPlaceholder width={380} />}>
+                  <SignupsChart series={data.signups} />
+                </Suspense>
+                <Suspense fallback={<ChartPlaceholder />}>
+                  <ReviewsChart series={data.reviews} />
+                </Suspense>
+              </>
+            ) : (
+              <>
+                <ChartPlaceholder width={380} />
+                <ChartPlaceholder />
+              </>
+            )}
           </div>
 
           {/* Businesses + activity */}

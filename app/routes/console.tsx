@@ -1,4 +1,8 @@
-import { Outlet, redirect } from "react-router";
+import {
+  Outlet,
+  redirect,
+  type ShouldRevalidateFunctionArgs,
+} from "react-router";
 import Sidebar from "../components/Sidebar";
 import { currentOperator } from "../prisma/operator";
 import type { Route } from "./+types/console";
@@ -25,6 +29,19 @@ export async function loader({ request }: Route.LoaderArgs) {
     return redirect(`/login?returnTo=${encodeURIComponent(url.pathname)}`);
   }
   return { operator: operator?.label ?? null };
+}
+
+/**
+ * The shell's only data is the operator label, which no section action
+ * changes, so a moderation click need not repeat the session lookup here. The
+ * section loaders that do revalidate still gate themselves.
+ */
+export function shouldRevalidate({
+  formMethod,
+  defaultShouldRevalidate,
+}: ShouldRevalidateFunctionArgs) {
+  if (formMethod && formMethod.toUpperCase() !== "GET") return false;
+  return defaultShouldRevalidate;
 }
 
 export default function Console({ loaderData }: Route.ComponentProps) {
