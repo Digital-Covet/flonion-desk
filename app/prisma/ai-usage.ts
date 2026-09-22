@@ -106,15 +106,20 @@ export async function loadAiUsageList(
   const c = filtered(filters);
   const all = db.orm.public.AiUsage;
 
+  // The breakdown ignores the business filter so it stays a way to move
+  // between businesses; every other filter (endpoint, model, window) applies.
+  const scoped = filtered({ ...filters, businessId: null });
+
+  // Everything that does not depend on another result runs in this one wave.
   const [
     rows,
     matching,
-    totalAgg,
+    totals,
     okCount,
-    costSum,
-    promptSum,
-    completionSum,
     rejections,
+    groups,
+    failedGroups,
+    businesses,
   ] = await Promise.all([
     c
       .select(
@@ -144,14 +149,31 @@ export async function loadAiUsageList(
       .all(),
 
     c.aggregate((a) => ({ n: a.count() })),
-    all.aggregate((a) => ({ n: a.count() })),
+    all.aggregate((a) => ({
+      n: a.count(),
+      cost: a.sum("costUsd"),
+      prompt: a.sum("promptTokens"),
+      completion: a.sum("completionTokens"),
+    })),
     all.where((u) => u.ok.eq(true)).aggregate((a) => ({ n: a.count() })),
-    all.aggregate((a) => ({ n: a.sum("costUsd") })),
-    all.aggregate((a) => ({ n: a.sum("promptTokens") })),
-    all.aggregate((a) => ({ n: a.sum("completionTokens") })),
     all
       .where((u) => u.errorKind.eq("rate_limit"))
       .aggregate((a) => ({ n: a.count() })),
+    // One row per business, so the grouped result is bounded by tenant count
+    // and sorting it in JS is cheap.
+    scoped.groupBy("businessId").aggregate((a) => ({
+      calls: a.count(),
+      promptTokens: a.sum("promptTokens"),
+      completionTokens: a.sum("completionTokens"),
+      costUsd: a.sum("costUsd"),
+    })),
+    scoped
+      .where((u) => u.ok.eq(false))
+      .groupBy("businessId")
+      .aggregate((a) => ({ n: a.count() })),
+    // Names for the breakdown and the page rows. Bounded by tenant count, the
+    // same assumption the breakdown makes, so it need not wait for the ids.
+    db.orm.public.Business.select("id", "name").all(),
   ]);
 
   // The ledger grows with every AI call, so percentiles are read from the
@@ -167,44 +189,13 @@ export async function loadAiUsageList(
       .all();
     return row?.latencyMs ?? 0;
   };
-  // The breakdown ignores the business filter so it stays a way to move
-  // between businesses; every other filter (endpoint, model, window) applies.
-  const scoped = filtered({ ...filters, businessId: null });
-
-  const [[p50, p95], groups, failedGroups] = await Promise.all([
-    Promise.all([latencyAt(0.5), latencyAt(0.95)]),
-    // One row per business, so the grouped result is bounded by tenant count
-    // and sorting it in JS is cheap.
-    scoped.groupBy("businessId").aggregate((a) => ({
-      calls: a.count(),
-      promptTokens: a.sum("promptTokens"),
-      completionTokens: a.sum("completionTokens"),
-      costUsd: a.sum("costUsd"),
-    })),
-    scoped
-      .where((u) => u.ok.eq(false))
-      .groupBy("businessId")
-      .aggregate((a) => ({ n: a.count() })),
-  ]);
-
-  const businessIds = [
-    ...new Set(
-      [
-        ...groups.map((g) => g.businessId),
-        ...rows.map((r) => r.businessId),
-      ].filter((id): id is string => id !== null),
-    ),
-  ];
   const userIds = [
     ...new Set(rows.map((r) => r.userId).filter((id): id is string => !!id)),
   ];
 
-  const [businesses, users] = await Promise.all([
-    businessIds.length === 0
-      ? []
-      : db.orm.public.Business.where((b) => b.id.in(businessIds))
-          .select("id", "name")
-          .all(),
+  const [p50, p95, users] = await Promise.all([
+    latencyAt(0.5),
+    latencyAt(0.95),
     userIds.length === 0
       ? []
       : db.orm.public.User.where((u) => u.id.in(userIds))
@@ -267,12 +258,11 @@ export async function loadAiUsageList(
     page: pageResult(listRows, matching.n, params),
     byBusiness,
     stats: {
-      total: totalAgg.n,
-      successRate:
-        totalAgg.n > 0 ? Math.round((okCount.n / totalAgg.n) * 100) : 0,
-      totalCost: costSum.n ? Number(costSum.n) : 0,
-      totalPromptTokens: promptSum.n ?? 0,
-      totalCompletionTokens: completionSum.n ?? 0,
+      total: totals.n,
+      successRate: totals.n > 0 ? Math.round((okCount.n / totals.n) * 100) : 0,
+      totalCost: totals.cost ? Number(totals.cost) : 0,
+      totalPromptTokens: totals.prompt ?? 0,
+      totalCompletionTokens: totals.completion ?? 0,
       p50Latency: p50,
       p95Latency: p95,
       rateLimitRejections: rejections.n,

@@ -113,7 +113,6 @@ export async function loadOverview(): Promise<OverviewData> {
     aiTotal,
     aiCurrent,
     aiPrior,
-    qrTotal,
     googleTotal,
     twoFactorTotal,
     signupTimes,
@@ -123,7 +122,8 @@ export async function loadOverview(): Promise<OverviewData> {
     invitations,
     feedback,
   ] = await Promise.all([
-    o.Business.aggregate((a) => ({ n: a.count() })),
+    // The QR tile reads the same table unfiltered, so it rides along here.
+    o.Business.aggregate((a) => ({ n: a.count(), qr: a.sum("qrScanCount") })),
     o.Business.where((b) => b.createdAt.gte(currentStart)).aggregate((a) => ({
       n: a.count(),
     })),
@@ -162,7 +162,6 @@ export async function loadOverview(): Promise<OverviewData> {
       .where((r) => r.createdAt.lt(currentStart))
       .aggregate((a) => ({ n: a.sum("aiCopyCount") })),
 
-    o.Business.aggregate((a) => ({ n: a.sum("qrScanCount") })),
     o.GoogleToken.aggregate((a) => ({ n: a.count() })),
     o.User.where((u) => u.twoFactorEnabled.eq(true)).aggregate((a) => ({
       n: a.count(),
@@ -208,7 +207,7 @@ export async function loadOverview(): Promise<OverviewData> {
       aiGenerations: delta(aiTotal.n ?? 0, aiCurrent.n ?? 0, aiPrior.n ?? 0),
     },
     health: [
-      { id: "qrScans", label: "QR scans", value: qrTotal.n ?? 0 },
+      { id: "qrScans", label: "QR scans", value: businessTotal.qr ?? 0 },
       { id: "google", label: "Google connections", value: googleTotal.n },
       { id: "twoFactor", label: "2FA enabled", value: twoFactorTotal.n },
     ],
