@@ -4,17 +4,14 @@
 // RUNTIME.TEMPORAL_UNAVAILABLE. This shim installs a Temporal global only when
 // the runtime is missing one, and must run before the client is created.
 import "temporal-polyfill/global";
-import "dotenv/config";
 import postgres from "@prisma/orm-postgres/runtime";
 import type { Contract } from "./contract.d";
 import contractJson from "./contract.json" with { type: "json" };
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set");
-}
+import { pool } from "./pool";
 
 export const db = postgres<Contract>({
   contractJson,
-  url: databaseUrl,
+  // The runtime pins an older @types/pg than the app's; the Pool is the same
+  // `pg` class at runtime, only the declarations differ.
+  pg: pool as unknown as NonNullable<Parameters<typeof postgres>[0]["pg"]>,
 });
