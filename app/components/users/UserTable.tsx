@@ -31,6 +31,7 @@ export function UserTable({
             <img
               src={u.avatar}
               alt=""
+              referrerPolicy="no-referrer"
               className="size-[28px] rounded-[8px] object-cover flex-none"
             />
           ) : (

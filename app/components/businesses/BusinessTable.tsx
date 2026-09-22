@@ -41,6 +41,7 @@ export function BusinessTable({
             <img
               src={b.logo}
               alt=""
+              referrerPolicy="no-referrer"
               className="size-[28px] rounded-[8px] object-cover flex-none"
             />
           ) : (

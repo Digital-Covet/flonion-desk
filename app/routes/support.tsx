@@ -71,6 +71,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 /** Longest reply the inbox accepts; the dialog enforces the same limit. */
 const REPLY_MAX = 5000;
 
+/** The reply id the dialog generates (`crypto.randomUUID()`). */
+const REPLY_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * The reply email: the operator's text, then the customer's own message
  * quoted under it so the thread reads on its own in any mail client.
@@ -166,9 +170,42 @@ export async function action({ request }: Route.ActionArgs) {
       }
       const resolve = body.resolve === true || body.resolve === "on";
 
-      // Sent before the write, so the row records what actually happened. A
-      // failed send is still kept, marked failed, so the text is not lost and
-      // can be retried from the thread.
+      // The dialog sends a fresh id per reply, so a double submit or a client
+      // retry names the same row. The row is stored as "sending" before the
+      // email goes out: the primary key lets exactly one request claim it, and
+      // only that request sends. The outcome is written once delivery settles;
+      // a failed send is kept, marked failed, so the text is not lost and can
+      // be retried from the thread.
+      const replyId =
+        typeof body.replyId === "string" && REPLY_ID.test(body.replyId)
+          ? body.replyId
+          : randomUUID();
+      const claimed = await db.orm.public.FeedbackReply.create({
+        id: replyId,
+        feedbackId,
+        operatorId: operator.id,
+        operatorLabel: operatorName(operator),
+        body: text,
+        deliveryStatus: "sending",
+      }).then(
+        () => true,
+        async (cause) => {
+          const existing = await db.orm.public.FeedbackReply.where((x) =>
+            x.id.eq(replyId),
+          )
+            .select("id")
+            .first();
+          if (existing) return false;
+          throw cause;
+        },
+      );
+      if (!claimed) {
+        return Response.json(
+          { error: "This reply was already submitted", replyId },
+          { status: 409 },
+        );
+      }
+
       const failure = await deliver(replyEmail(fb, text));
       const sent = failure === null;
       const nextStatus = !sent
@@ -178,19 +215,15 @@ export async function action({ request }: Route.ActionArgs) {
           : fb.status === "new"
             ? "open"
             : fb.status;
-      const replyId = randomUUID();
 
       await db.transaction(async (tx) => {
-        await tx.orm.public.FeedbackReply.create({
-          id: replyId,
-          feedbackId,
-          operatorId: operator.id,
-          operatorLabel: operatorName(operator),
-          body: text,
-          deliveryStatus: sent ? "sent" : "failed",
-          error: failure,
-          sentAt: sent ? now : null,
-        });
+        await tx.orm.public.FeedbackReply.where((x) => x.id.eq(replyId)).update(
+          {
+            deliveryStatus: sent ? "sent" : "failed",
+            error: failure,
+            sentAt: sent ? now : null,
+          },
+        );
         if (nextStatus !== fb.status) {
           await tx.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).update(
             nextStatus === "resolved"
@@ -234,6 +267,19 @@ export async function action({ request }: Route.ActionArgs) {
           { status: 409 },
         );
       }
+      // Claim the row before sending: of two concurrent retries only one moves
+      // it off "failed", and only that one sends.
+      const claimed = await db.orm.public.FeedbackReply.where((x) =>
+        x.id.eq(replyId),
+      )
+        .where((x) => x.deliveryStatus.eq("failed"))
+        .updateAndCount({ deliveryStatus: "sending" });
+      if (claimed === 0) {
+        return Response.json(
+          { error: "This reply is already being sent" },
+          { status: 409 },
+        );
+      }
 
       const failure = await deliver(replyEmail(fb, reply.body));
       const sent = failure === null;
@@ -241,7 +287,7 @@ export async function action({ request }: Route.ActionArgs) {
         await tx.orm.public.FeedbackReply.where((x) => x.id.eq(replyId)).update(
           sent
             ? { deliveryStatus: "sent", error: null, sentAt: now }
-            : { error: failure },
+            : { deliveryStatus: "failed", error: failure },
         );
         if (sent && fb.status === "new") {
           await tx.orm.public.Feedback.where((x) => x.id.eq(feedbackId)).update(

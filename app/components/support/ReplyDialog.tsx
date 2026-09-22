@@ -28,6 +28,9 @@ export function ReplyDialog({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [resolve, setResolve] = useState(false);
+  // One id per draft: a double submit or a retried request names the same
+  // reply, and the server sends it once.
+  const [replyId, setReplyId] = useState(() => crypto.randomUUID());
 
   const thread = useFetcher<{
     thread: FeedbackThread | null;
@@ -60,6 +63,7 @@ export function ReplyDialog({
     if (sendData.ok || sendData.replyId) {
       setText("");
       setResolve(false);
+      setReplyId(crypto.randomUUID());
     }
     if (open) load(`/support/${feedbackId}/thread`);
   }, [send.state, sendData, open, feedbackId, load]);
@@ -126,12 +130,14 @@ export function ReplyDialog({
                       <span>{r.created}</span>
                       {r.deliveryStatus === "sent" ? (
                         <StatusBadge tone="good">Sent</StatusBadge>
+                      ) : r.deliveryStatus === "sending" ? (
+                        <StatusBadge tone="neutral">Sending</StatusBadge>
                       ) : (
                         <StatusBadge tone="bad" title={r.error ?? undefined}>
                           Not delivered
                         </StatusBadge>
                       )}
-                      {r.deliveryStatus !== "sent" ? (
+                      {r.deliveryStatus === "failed" ? (
                         <Button
                           disabled={retry.state !== "idle"}
                           onClick={() =>
@@ -169,7 +175,13 @@ export function ReplyDialog({
               e.preventDefault();
               if (!canSend) return;
               send.submit(
-                { intent: "reply", feedbackId, body: text.trim(), resolve },
+                {
+                  intent: "reply",
+                  feedbackId,
+                  replyId,
+                  body: text.trim(),
+                  resolve,
+                },
                 {
                   method: "post",
                   encType: "application/json",
